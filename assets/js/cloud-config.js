@@ -1,9 +1,17 @@
-/* V3.3.18 Firebase Web App 設定。僅放 Firebase 控制台提供的 Web 設定，不能放服務帳戶或私密金鑰。 */
-window.PIG_FIREBASE_CONFIG = {
-  apiKey: '',
-  authDomain: '',
-  projectId: '',
-  appId: '',
-  messagingSenderId: '',
-  storageBucket: ''
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyC4U2QguuXmsGcSFo5LkL-S2JrFEgKel1c",
+  authDomain: "taiwan-pigfarm-map-579dc.firebaseapp.com",
+  projectId: "taiwan-pigfarm-map-579dc",
+  storageBucket: "taiwan-pigfarm-map-579dc.firebasestorage.app",
+  messagingSenderId: "126847349198",
+  appId: "1:126847349198:web:d83245553060d433923b9f"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
