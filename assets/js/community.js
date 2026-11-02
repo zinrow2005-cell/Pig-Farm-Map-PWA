@@ -1,4 +1,4 @@
-/* 豬場查核 V3.3.18｜Google Firebase Authentication + Cloud Firestore。 */
+/* 豬場查核 V3.3.19｜Google Firebase Authentication + Cloud Firestore。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
@@ -18,12 +18,18 @@ function err(e){const code=String(e?.code||''); if(code.includes('permission-den
 function enabled(){return configured;}
 function open(){const p=$('cloudPanel');if(!p)return;p.hidden=false;renderUser();renderProposals();if(!configured)status('尚未填入 Firebase Web 設定；目前仍使用本機豬場資料，沒有雲端同步',true);}
 function close(){if($('cloudPanel'))$('cloudPanel').hidden=true;}
-function renderUser(){const who=$('cloudWho'),sign=$('cloudSignIn'),out=$('cloudSignOut'),submit=$('cloudSubmit'),seed=$('cloudSeed');
+function renderUser(){
+ const who=$('cloudWho'),sign=$('cloudSignIn'),out=$('cloudSignOut'),submit=$('cloudSubmit'),seed=$('cloudSeed');
+ const label=user?(admin?'管理員':(user.displayName||user.email||'已登入')):'Google 登入';
+ const quick=$('cloudLoginQuick');if(quick){quick.textContent=user?(admin?'管理員 ✓':'我的帳號 ✓'):'Google 登入';quick.title=user?`已登入：${user.email||label}，點此開啟共同編輯`:'使用 Google 帳號登入';quick.setAttribute('aria-label',quick.title);}
+ const mobileLabel=$('mobileAuthLabel');if(mobileLabel)mobileLabel.textContent=user?(admin?'管理員':'帳號'):'登入';
  if(who)who.textContent=user?`已登入 ${user.displayName||user.email||'Google 使用者'}${admin?' · 管理者':''}`:'尚未登入：可以查看正式場址；修改須 Google 登入';
  if(sign)sign.hidden=!!user;if(out)out.hidden=!user;
  if(submit)submit.disabled=!user||!db;
  if(seed){seed.hidden=!admin||!db;seed.disabled=seedBusy;seed.textContent=seedBusy?'正在建立雲端資料…':'初始化／補齊315筆初始豬場（只新增缺漏）';}
+ const first=$('cloudAdminFirstRun');if(first)first.hidden=!(admin&&db&&liveFarms.size===0&&!farmsFromCache);
 }
+
 function proposalDate(value){if(value?.toDate)return value.toDate().toLocaleString('zh-TW');return '剛剛';}
 function renderProposals(){const box=$('cloudProposals');if(!box)return;
  if(!user){box.innerHTML='<p class="subtle">登入後可查看最近50筆場址修改建議及其審核結果。</p>';return;}
@@ -43,6 +49,7 @@ function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到�
 }
 function publicRows(){return [...liveFarms.values()];}
 function syncIndicator(){if(!db)return;const count=liveFarms.size;
+ if(!count&&farmsFromCache){status('Firebase 已載入，正在向伺服器確認豬場資料…');return;}
  status(count?`${farmsFromCache?'離線快取／待確認連線':'Firestore 即時同步'} · ${count} 筆正式豬場 · ${proposals.filter(x=>x.status==='pending').length} 筆待審核`: '已連線至 Firebase，但資料庫尚無豬場；請先登入管理員並初始化315筆資料',!count||farmsFromCache);
 }
 async function submit(event){event.preventDefault();if(!user||!db){status('必須先 Google 登入並連接 Firebase 才能提交',true);return;}
@@ -73,16 +80,23 @@ async function review(id,approve){if(!admin||!user||!db)return;const p=proposals
  catch(e){status('審核失敗：'+err(e),true);}
 }
 async function signIn(){if(!auth||!A){status('Firebase 尚未正確設定或套件尚未載入',true);return;}
- const btn=$('cloudSignIn');if(btn)btn.disabled=true;
+ const btn=$('cloudSignIn');if(btn)btn.disabled=true;status('正在開啟 Google 登入視窗…');
  try{await A.signInWithPopup(auth,new A.GoogleAuthProvider());status('Google 帳號登入成功，正在同步資料…');}
  catch(e){status('登入未完成：'+err(e)+'。iPhone/iPad若使用主畫面PWA不支援彈窗，請先用 Safari 網頁登入。',true);}finally{if(btn)btn.disabled=false;}
 }
 async function signOut(){if(!auth)return;try{await A.signOut(auth);status('已登出 Google；仍可查看公開的正式豬場。');}catch(e){status(err(e),true);}}
 async function checkAdmin(u){if(!u||!db)return false;try{const result=await F.getDoc(F.doc(db,'admins',u.uid));return result.exists()&&result.data()?.role==='admin';}catch(e){status('無法確認管理者權限：'+err(e),true);return false;}}
+function maybeShowAdminSetup(){
+ if(!admin||!db||liveFarms.size!==0||farmsFromCache)return;
+ let shown=false;try{shown=sessionStorage.getItem('pig3319-admin-setup-shown')==='1';}catch(_e){}
+ if(shown)return;
+ try{sessionStorage.setItem('pig3319-admin-setup-shown','1');}catch(_e){}
+ open();status('已確認雲端沒有豬場，請按「初始化／補齊315筆初始豬場」。');
+}
 function subscribeFarms(){if(unsubFarms)unsubFarms();unsubFarms=F.onSnapshot(F.collection(db,'farms'),snapshot=>{
  const next=new Map();snapshot.forEach(d=>next.set(d.id,{...d.data(),uid:d.id}));liveFarms=next;
  farmsFromCache=!!snapshot.metadata.fromCache;
- if(next.size)hook?.applyApproved(publicRows());renderUser();syncIndicator();
+ if(next.size)hook?.applyApproved(publicRows());renderUser();syncIndicator();maybeShowAdminSetup();
  },e=>status('Firestore 正式豬場即時監聽失敗：'+err(e),true));}
 function subscribeSuggestions(){if(unsubProposals){unsubProposals();unsubProposals=null;}
  proposals=[];renderProposals();if(!user)return;
@@ -90,7 +104,9 @@ function subscribeSuggestions(){if(unsubProposals){unsubProposals();unsubProposa
  unsubProposals=F.onSnapshot(q,snapshot=>{proposals=snapshot.docs.map(d=>({...d.data(),id:d.id}));renderProposals();syncIndicator();},e=>status('修改建議即時監聽失敗：'+err(e),true));
 }
 async function onUserChanged(u){const seq=++loggedInSeq;user=u;admin=false;renderUser();subscribeSuggestions();if(!u){syncIndicator();return;}
- const value=await checkAdmin(u);if(seq!==loggedInSeq)return;admin=value;renderUser();subscribeSuggestions();syncIndicator();}
+ const value=await checkAdmin(u);if(seq!==loggedInSeq)return;admin=value;renderUser();subscribeSuggestions();syncIndicator();
+ maybeShowAdminSetup();}
+
 async function refresh(){if(!db){status('Firebase 尚未連線',true);return;}
  try{const snapshot=await F.getDocsFromServer(F.collection(db,'farms'));const next=new Map();snapshot.forEach(d=>next.set(d.id,{...d.data(),uid:d.id}));liveFarms=next;farmsFromCache=false;if(next.size)hook?.applyApproved(publicRows());syncIndicator();}
  catch(e){status('無法從雲端取得最新資料：'+err(e)+'。目前看到的可能是舊資料。',true);}
@@ -115,6 +131,8 @@ async function seed(){if(!admin||!user||!db||seedBusy)return;
 }
 async function start(options){if(started)return;started=true;hook=options;
  $('cloudOpen')?.addEventListener('click',open);$('cloudClose')?.addEventListener('click',close);
+ $('cloudLoginQuick')?.addEventListener('click',()=>{if(user)open();else if(auth)signIn();else open();});
+ $('mobileAuthToggle')?.addEventListener('click',()=>{if(user)open();else if(auth)signIn();else open();});
  $('cloudSignIn')?.addEventListener('click',signIn);$('cloudSignOut')?.addEventListener('click',signOut);
  $('cloudRefresh')?.addEventListener('click',refresh);$('cloudSeed')?.addEventListener('click',seed);
  $('cloudEditForm')?.addEventListener('submit',submit);

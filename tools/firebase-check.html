@@ -1,0 +1,19 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Firebase 雲端連線檢查｜豬場查核</title><style>
+*{box-sizing:border-box}body{font:16px/1.6 system-ui,-apple-system,"Microsoft JhengHei",sans-serif;background:#eff5f1;color:#15352d;margin:0}main{max-width:760px;margin:32px auto;padding:26px;background:white;border-radius:18px;box-shadow:0 8px 25px #13372b19}h1{font-size:25px;margin:0 0 8px}.sub{color:#5b6c63}li{margin:10px 0;padding:8px 10px;background:#f4f8f6;border-radius:8px;overflow-wrap:anywhere}.ok{color:#16763e}.bad{color:#b42d2d}.pending{color:#67756e}button{border:0;background:#1f6b4b;color:#fff;padding:11px 18px;border-radius:10px;font-weight:700;cursor:pointer}code{font-size:14px}a{color:#1c6749}footer{color:#5b6c63;font-size:13px;margin-top:22px}
+</style></head><body><main><h1>Firebase 雲端連線檢查</h1><p class="sub">只檢查連線與正式豬場公開讀取，不會新增、修改或刪除資料。</p><button id="go">重新檢查</button><ol><li id="a">等待開始</li><li id="b">等待開始</li><li id="c">等待開始</li></ol><p><a href="../index.html">返回豬場查詢系統</a></p><footer>如果 SDK 可載入但 Firestore 讀取失敗，請核對已發布的 <code>firebase/firestore.rules</code>、正確的 Firestore 專案，以及網路環境。Google 登入與管理員權限需要在主系統另行測試。</footer></main>
+<script src="../assets/js/cloud-config.js"></script>
+<script type="module">
+const el=id=>document.getElementById(id);
+function set(id,s,kind='pending'){el(id).textContent=s;el(id).className=kind;}
+async function check(){
+ const conf=window.PIG_FIREBASE_CONFIG||{};
+ if(!(conf.apiKey&&conf.authDomain&&conf.projectId&&conf.appId)){set('a','✕ cloud-config.js 未填入完整 Firebase 設定','bad');return;}
+ set('a','✓ 設定已載入：'+conf.projectId+'（'+conf.authDomain+'）','ok');
+ let app,fire;
+ try{[app,fire]=await Promise.all([import('https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js'),import('https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js')]);set('b','✓ Firebase SDK 已成功載入','ok');}
+ catch(e){set('b','✕ Firebase SDK 無法載入：'+(e?.message||e),'bad');return;}
+ try{const db=fire.getFirestore(app.initializeApp(conf,'pigfarm-check-'+Date.now()));const q=fire.query(fire.collection(db,'farms'),fire.limit(1));const snap=await fire.getDocsFromServer(q);set('c','✓ Firestore 可讀取；'+(snap.size?'已找到正式豬場資料':'目前資料庫尚無正式豬場，稍後由管理者初始化315筆') ,'ok');}
+ catch(e){set('c','✕ Firestore 尚無法公開讀取：'+(e?.code||e?.message||e),'bad');}
+}
+el('go').addEventListener('click',check);check();
+</script></body></html>

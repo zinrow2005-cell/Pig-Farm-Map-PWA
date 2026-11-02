@@ -584,6 +584,7 @@ function setMobileAim(active){
  if(maps)maps.classList.toggle('aim-mode',!!active);
  if(main)main.textContent=active?'◎ 查核準星位置':'⌖ 進入準星查核';
  if(close)close.hidden=!active;
+ window.PigMobileUI?.aimChanged?.(!!active);
 }
 function mobileAimAction(){
  if(!STATE.mapReady)return notice('地圖尚未準備好。');
