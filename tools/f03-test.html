@@ -1,0 +1,101 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>F03畜牧使用向量圖磚診斷</title><style>body{max-width:790px;margin:20px auto;padding:12px;font-family:system-ui,"Noto Sans TC",sans-serif;color:#234}button,select{font-size:16px;padding:8px}canvas{background:#f4f6f5;border:1px solid #ccc;width:256px;height:256px}pre{white-space:pre-wrap;word-break:break-all;background:#eef3f2;padding:10px;border-radius:8px}</style></head><body><h2>F03 畜牧使用圖層診斷 · V3.2.2</h2><p>此頁不依賴 Leaflet 或其他地圖底圖，直接向官方 Hosted VectorTileServer 讀取 PBF，檢查跨來源和幾何資料。圖塊沒有橘色可能表示該地區沒有區塊，不等於連線失敗。</p><label>年度 <select id="year"><option value="4">112年</option><option value="5">111年</option></select></label> <button id="test">重新測試</button> <button id="copy">複製報告</button> <a href="../index.html">回主地圖</a><p id="status">準備測試</p><canvas width="256" height="256" id="tile"></canvas><pre id="report"></pre><script>/* 內建向量圖磚解碼層 */
+/* F03 向量瓦片解碼器：僅讀取 MVT polygon geometry，獨立於 Leaflet。
+ * 來源為林業及自然保育署 ArcGIS Hosted F03 (112/111)，依官方 style source-layer 命名。
+ * 無法下載時會回報失敗，不虛構橘色區塊。 */
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.PigF03=api;})(typeof window!=='undefined'?window:globalThis,function(){'use strict';
+ const ENDPOINT={4:'https://mapportal.forest.gov.tw/server/rest/services/Hosted/F03%E7%95%9C%E7%89%A7%E4%BD%BF%E7%94%A8_%E5%85%A8%E5%8F%B0_112_3857_20250702/VectorTileServer',5:'https://mapportal.forest.gov.tw/server/rest/services/Hosted/F03%E7%95%9C%E7%89%A7%E4%BD%BF%E7%94%A8_%E5%85%A8%E5%8F%B0_111_3857_20250702/VectorTileServer'};
+ const LAYERS={4:'F03畜牧使用_全台_112',5:'F03畜牧使用_全台_111'};
+ const MAX_NATIVE_ZOOM=12;
+ // Official service lists Max LOD 12; overzoom child tiles must reuse their z12 parent.
+ function sourceTile(coords){const z=Math.min(coords.z,MAX_NATIVE_ZOOM),factor=Math.pow(2,coords.z-z);return {z,x:Math.floor(coords.x/factor),y:Math.floor(coords.y/factor),factor,dx:coords.x%factor,dy:coords.y%factor};}
+ const sourceCache=new Map();const MAX_CACHE=72;
+ function getTileLayers(year,z,x,y){const key=[year,z,x,y].join('/');if(sourceCache.has(key)){const old=sourceCache.get(key);sourceCache.delete(key);sourceCache.set(key,old);return old;}
+  const controller=new AbortController(),watchdog=setTimeout(()=>controller.abort(),12000);
+  const result=fetch(tileURL(year,z,x,y),{signal:controller.signal,mode:'cors',cache:'default'}).then(async response=>{if(!response.ok)throw Error('F03 HTTP '+response.status+' (z'+z+')');return parseTile(await response.arrayBuffer(),LAYERS[year]);}).catch(error=>{sourceCache.delete(key);throw error;}).finally(()=>clearTimeout(watchdog));
+  sourceCache.set(key,result);while(sourceCache.size>MAX_CACHE)sourceCache.delete(sourceCache.keys().next().value);return result;
+ }
+
+ function tileURL(year,z,x,y){return ENDPOINT[year]+'/tile/'+z+'/'+y+'/'+x+'.pbf';}
+ function varint(b,p){let result=0,shift=0;for(let i=0;i<10;i++){if(p.i>=b.length)throw Error('PBF 資料被截斷');const v=b[p.i++];result+=(v&127)*Math.pow(2,shift);if(!(v&128))return result;shift+=7;}throw Error('PBF varint 過長');}
+ function fields(b,fn){const p={i:0};while(p.i<b.length){const k=varint(b,p),id=k>>>3,wire=k&7;let v;if(wire===0)v=varint(b,p);else if(wire===1){if(p.i+8>b.length)throw Error('PBF 資料不足');v=b.subarray(p.i,p.i+8);p.i+=8;}else if(wire===5){if(p.i+4>b.length)throw Error('PBF 資料不足');v=b.subarray(p.i,p.i+4);p.i+=4;}else if(wire===2){const n=varint(b,p);if(n<0||p.i+n>b.length)throw Error('PBF 長度異常');v=b.subarray(p.i,p.i+n);p.i+=n;}else throw Error('不支援的 PBF wire type '+wire);fn(id,wire,v);}}
+ const decodeText=typeof TextDecoder==='undefined'?null:new TextDecoder('utf-8');
+ function str(b){if(decodeText)return decodeText.decode(b);return Array.from(b).map(x=>String.fromCharCode(x)).join('');}
+ function packed(b){const p={i:0},out=[];while(p.i<b.length)out.push(varint(b,p));return out;}
+ function parseFeature(b){const f={type:0,geom:[],id:null};fields(b,(k,w,v)=>{if(k===1&&w===0)f.id=v;else if(k===3&&w===0)f.type=v;else if(k===4&&w===2)f.geom=packed(v);});return f;}
+ function parseLayer(b){let name='',extent=4096,raw=[];fields(b,(k,w,v)=>{if(k===1&&w===2)name=str(v);else if(k===2&&w===2)raw.push(v);else if(k===5&&w===0)extent=v;});return {name,extent,features:raw.map(parseFeature)};}
+ function parseTile(input,expected){const b=input instanceof Uint8Array?input:new Uint8Array(input);const layers=[];fields(b,(k,w,v)=>{if(k===3&&w===2){const layer=parseLayer(v);if(!expected||layer.name===expected)layers.push(layer);}});return layers;}
+ function zag(n){return (n&1)?-(n+1)/2:n/2;}
+ function rings(nums){let x=0,y=0,p=0,r=[],result=[];while(p<nums.length){const cmd=nums[p++],op=cmd&7,count=cmd>>>3;if(count<1||count>500000)throw Error('無效 MVT Geometry 指令');if(op===1||op===2){for(let i=0;i<count;i++){if(p+1>=nums.length)throw Error('MVT 幾何座標不足');x+=zag(nums[p++]);y+=zag(nums[p++]);if(op===1){if(r.length>=3)result.push(r);r=[];}r.push([x,y]);}}else if(op===7){if(r.length>=3)result.push(r);r=[];}else throw Error('未知幾何指令 '+op);}if(r.length>=3)result.push(r);return result;}
+ function render(canvas,layers,source){const ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas context unavailable');
+  const factor=source?.factor||1,dx=source?.dx||0,dy=source?.dy||0,side=canvas.width;
+  // Parent geometry coordinates cover one full native tile. Transform into child tile pixels.
+  // Render directly as vectors (not stretched pixels), so outlines remain clear at zoom 13-20.
+  ctx.save();ctx.clearRect(0,0,canvas.width,canvas.height);ctx.beginPath();ctx.rect(0,0,canvas.width,canvas.height);ctx.clip();
+  ctx.setTransform(factor,0,0,factor,-dx*side,-dy*side);
+  let polygons=0;
+  for(const layer of layers){const scale=side/(layer.extent||4096);ctx.fillStyle='rgba(245,145,34,0.91)';ctx.strokeStyle='rgba(163,75,14,0.92)';ctx.lineWidth=1.15/factor;
+   for(const f of layer.features){if(f.type!==3||!f.geom.length)continue;const paths=f._rings||(f._rings=rings(f.geom));if(!paths.length)continue;
+    if(!f._bounds){let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;for(const r of paths)for(const pt of r){minX=Math.min(minX,pt[0]);maxX=Math.max(maxX,pt[0]);minY=Math.min(minY,pt[1]);maxY=Math.max(maxY,pt[1]);}f._bounds=[minX,maxX,minY,maxY];}
+    const [minX,maxX,minY,maxY]=f._bounds,extent=layer.extent||4096;
+    const cropLeft=dx*extent/factor,cropRight=(dx+1)*extent/factor,cropTop=dy*extent/factor,cropBottom=(dy+1)*extent/factor;
+    if(maxX<cropLeft-5||minX>cropRight+5||maxY<cropTop-5||minY>cropBottom+5)continue;
+    ctx.beginPath();for(const ring of paths){ctx.moveTo(ring[0][0]*scale,ring[0][1]*scale);for(let i=1;i<ring.length;i++)ctx.lineTo(ring[i][0]*scale,ring[i][1]*scale);ctx.closePath();}
+    ctx.fill('evenodd');ctx.stroke();polygons++;
+   }
+  }
+  ctx.restore();return polygons;
+ }
+ function insideRing(point,ring){let inside=false;const [px,py]=point;for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+  const [ax,ay]=ring[i],[bx,by]=ring[j];
+  if((ay>py)!==(by>py)&&px<(bx-ax)*(py-ay)/(by-ay)+ax)inside=!inside;
+ }return inside;}
+ function insidePolygon(point,allRings){let inside=false;for(const r of allRings)if(insideRing(point,r))inside=!inside;return inside;}
+ function toLngLat(px,py,z,x,y,extent){const n=2**z,worldX=(x+px/extent)/n,worldY=(y+py/extent)/n;
+  const lon=worldX*360-180,lat=Math.atan(Math.sinh(Math.PI*(1-2*worldY)))*180/Math.PI;
+  return [+lon.toFixed(6),+lat.toFixed(6)];}
+ async function tileFragmentAt(year,lat,lng){
+  const z=MAX_NATIVE_ZOOM,n=2**z,fx=(lng+180)/360*n,fy=(1-Math.asinh(Math.tan(lat*Math.PI/180))/Math.PI)/2*n;
+  const x=Math.floor(fx),y=Math.floor(fy),layers=await getTileLayers(year,z,x,y);
+  let partIndex=0;
+  for(const layer of layers){const extent=layer.extent||4096,p=[(fx-x)*extent,(fy-y)*extent];
+   for(const feature of layer.features){const idx=partIndex++;if(feature.type!==3)continue;
+    const paths=feature._rings||(feature._rings=rings(feature.geom));if(!paths.length||!insidePolygon(p,paths))continue;
+    let points=0;const geo=[];
+    for(const ring of paths){if(ring.length<3)continue;const coords=ring.map(([xx,yy])=>toLngLat(xx,yy,z,x,y,extent));points+=coords.length;if(points>12000)return null;
+     if(coords.length>=3){const a=coords[0],b=coords[coords.length-1];if(a[0]!==b[0]||a[1]!==b[1])coords.push([...a]);geo.push(coords);}}
+    if(geo.length)return {key:`TILE-${year}-${z}-${x}-${y}-${idx}`,year,source:'tile',objectId:null,geometry:{type:'Polygon',coordinates:geo},tile:{z,x,y,idx}};
+   }
+  }
+  return null;
+ }
+
+ /* A scan enumerates clipped MVT *fragments* only, never official complete land parcels. */
+ function mercXY(lat,lng,z){const n=2**z,clamped=Math.max(-85.0511,Math.min(85.0511,lat));return {x:(lng+180)/360*n,y:(1-Math.asinh(Math.tan(clamped*Math.PI/180))/Math.PI)/2*n};}
+ function tileRange(bounds,z=MAX_NATIVE_ZOOM){const nw=mercXY(bounds.north,bounds.west,z),se=mercXY(bounds.south,bounds.east,z),n=2**z;
+  return {xmin:Math.max(0,Math.floor(nw.x)),xmax:Math.min(n-1,Math.floor(se.x)),ymin:Math.max(0,Math.floor(nw.y)),ymax:Math.min(n-1,Math.floor(se.y))};}
+ function pickInterior(paths){
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for(const ring of paths)for(const [x,y] of ring){minX=Math.min(minX,x);maxX=Math.max(maxX,x);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}
+  if(!Number.isFinite(minX)||maxX===minX||maxY===minY)return null;
+  for(const split of [1,3,7,15])for(let i=0;i<split;i++)for(let j=0;j<split;j++){
+   const p=[minX+(i+.5)/split*(maxX-minX),minY+(j+.5)/split*(maxY-minY)];
+   if(insidePolygon(p,paths))return p;
+  }
+  // For very thin slivers, use the midpoint of an edge slightly inset.
+  for(const ring of paths){if(ring.length<3)continue;
+   const avg=ring.reduce((a,p)=>[a[0]+p[0]/ring.length,a[1]+p[1]/ring.length],[0,0]);
+   for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length];const p=[(a[0]+b[0])/2*.999+avg[0]*.001,(a[1]+b[1])/2*.999+avg[1]*.001];if(insidePolygon(p,paths))return p;}
+  }
+  return null;
+ }
+ function candidatesFromTile(year,z,x,y,layers,bounds){const rows=[];let idx=0;
+  for(const layer of layers){for(const f of layer.features){const current=idx++;if(f.type!==3||!f.geom.length)continue;
+   const paths=f._rings||(f._rings=rings(f.geom)),p=pickInterior(paths);if(!p)continue;
+   const [lng,lat]=toLngLat(p[0],p[1],z,x,y,layer.extent||4096);
+   if(lat<bounds.south||lat>bounds.north||lng<bounds.west||lng>bounds.east)continue;
+   rows.push({key:`TILE-${year}-${z}-${x}-${y}-${current}`,year,lat,lng,tile:{z,x,y,idx:current},source:'tile'});
+  }}return rows;
+ }
+ return {ENDPOINT,LAYERS,MAX_NATIVE_ZOOM,tileURL,sourceTile,getTileLayers,parseTile,rings,render,insideRing,insidePolygon,toLngLat,tileFragmentAt,mercXY,tileRange,pickInterior,candidatesFromTile};
+});
+</script><script>const $=x=>document.getElementById(x);async function run(){let year=+$('year').value,z=12,x=3418,y=1770,url=PigF03.tileURL(year,z,x,y),log=['頁面：'+location.href,'來源：'+url,'測試：PBF fetch/CORS/解碼/繪圖'];$('status').textContent='讀取中…';$('tile').getContext('2d').clearRect(0,0,256,256);const c=new AbortController(),t=setTimeout(()=>c.abort(),12000);try{let r=await fetch(url,{mode:'cors',signal:c.signal});log.push('HTTP：'+r.status);if(!r.ok)throw Error('HTTP '+r.status);let b=await r.arrayBuffer();log.push('回傳位元組：'+b.byteLength);let layers=PigF03.parseTile(b);log.push('來源圖層：'+layers.map(k=>k.name+'／'+k.features.length+'筆').join(', '));let wanted=layers.filter(k=>k.name===PigF03.LAYERS[year]);log.push('目標圖層筆數：'+wanted.reduce((n,k)=>n+k.features.length,0));let count=PigF03.render($('tile'),wanted);log.push('畫出橘色幾何：'+count);$('status').textContent='成功讀到向量圖磚'+(count?'，已畫出橘色區塊':'，但這一塊沒有圖形');}catch(e){log.push('失敗：'+e.message);$('status').textContent='F03 讀取失敗：'+e.message+'（可能是 CORS 或網路／伺服器限制）';}finally{clearTimeout(t);$('report').textContent=log.join('\n');}}$('test').onclick=run;$('year').onchange=run;$('copy').onclick=()=>navigator.clipboard?.writeText($('report').textContent).catch(()=>{});run();</script></body></html>

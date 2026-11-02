@@ -1,0 +1,118 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>F03 官方地塊擷取與完整性檢查 V3.3.5</title>
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC','Microsoft JhengHei',sans-serif;color:#183b32;background:#f5f7f5}*{box-sizing:border-box}body{margin:0}header{background:#fff;border-bottom:1px solid #dfe7e2;padding:17px max(18px,calc((100vw - 1120px)/2));display:flex;justify-content:space-between;align-items:center;gap:10px}header b{font-size:20px}header small{display:block;font-size:12px;color:#6b8076;margin-top:2px}.chip{background:#e8f4ed;color:#216b4c;padding:6px 10px;border-radius:30px;font-size:12px}main{max-width:1120px;margin:18px auto;padding:0 14px 60px;display:grid;grid-template-columns:1fr .95fr;gap:14px}.panel{background:#fff;border:1px solid #dce8df;border-radius:14px;padding:20px;min-width:0}.panel h2{font-size:17px;margin:0 0 12px}.sub{font-size:13px;line-height:1.75;color:#65776c;margin:7px 0 14px}label{display:block;font-weight:600;font-size:13px;margin:14px 0 6px}select,input{border:1px solid #cbd9cf;border-radius:9px;background:#fff;padding:12px;color:#173b2f;font:inherit;width:100%;min-width:0}input:focus,select:focus{outline:2px solid #9fd1b6}button{border:1px solid #c7d9cd;background:white;border-radius:9px;padding:11px 14px;font:inherit;font-size:13px;cursor:pointer;color:#244e3c;min-height:42px}button:hover{background:#eef7f0}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:#19694b;border-color:#19694b;color:#fff;font-weight:700}.primary:hover{background:#185a43}.danger{color:#a8412e}.grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:17px}.line{border-top:1px solid #e6ede7;margin:18px 0}.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.stat{background:#f3f7f4;border-radius:10px;padding:11px}.stat strong{display:block;font-size:25px;color:#164733;font-variant-numeric:tabular-nums}.stat span{font-size:12px;color:#73867b}.status{padding:12px 13px;background:#edf7f0;border-radius:9px;line-height:1.7;font-size:13px;min-height:53px;overflow-wrap:anywhere}.status.bad{background:#fff0e8;color:#8c3926}.status.warn{background:#fff7dc;color:#805b19}progress{width:100%;accent-color:#208259;height:13px;margin:15px 0}.log{font:12px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;background:#152a25;color:#e4f1e9;border-radius:10px;padding:11px}.footnote{font-size:12px;color:#6a796f;line-height:1.7}a{color:#167052}code{font-size:12px;overflow-wrap:anywhere}#downloadBtn[hidden],#partialBtn[hidden]{display:none}@media(max-width:780px){main{grid-template-columns:1fr}header{padding:12px 15px}header b{font-size:16px}.panel{padding:16px}.stat strong{font-size:21px}}
+</style></head><body>
+<header><div><b>F03 官方地塊擷取工作台</b><small>豬場地圖查核 V3.3.5 · 分批擷取／斷點續查，不修改豬場資料</small></div><span class="chip">民國111／112 年</span></header>
+<main><section class="panel"><h2>1. 選擇要擷取的區域</h2><p class="sub">這裡的範圍是「經緯度矩形」，<b>不是虎尾鎮或土庫鎮的行政界線</b>。建議先測試小範圍，確認官方服務可讀再擴大。</p>
+<label for="preset">研究範圍</label><select id="preset"><option value="huwei">虎尾研究區（矩形示例）</option><option value="tuku">土庫研究區（矩形示例）</option><option value="joint">虎尾＋土庫周邊（較大範圍）</option><option value="url">由豬場系統帶入的目前視窗</option><option value="custom">自訂經緯度</option></select>
+<label for="year">盤查年度</label><select id="year"><option value="112">民國112年（官方圖層4）</option><option value="111">民國111年（官方圖層5）</option></select>
+<div class="grid"><div><label for="west">最西經度 (W)</label><input type="number" step="0.000001" id="west"></div><div><label for="east">最東經度 (E)</label><input type="number" step="0.000001" id="east"></div><div><label for="south">最南緯度 (S)</label><input type="number" step="0.000001" id="south"></div><div><label for="north">最北緯度 (N)</label><input type="number" step="0.000001" id="north"></div></div>
+<p class="footnote">來源：林業及自然保育署 ArcGIS MapServer／F03畜牧使用。查詢採 WGS84 (EPSG:4326)，結果只代表指定研究矩形與官方地塊相交的紀錄，不代表畜牧場類型或最新營運狀態。</p>
+<div class="actions"><button class="primary" id="startBtn">查詢官方地塊並核對</button><button id="stopBtn" disabled>停止查詢</button></div><div class="line"></div>
+<h2>2. 結果與備份</h2><div class="actions"><button id="downloadBtn" class="primary" disabled>下載完整 GeoJSON</button><button id="partialBtn" hidden disabled>下載未完成續查檔</button><button id="resumeBtn">匯入上次續查檔</button><button id="cancelResumeBtn" hidden>取消續查</button><input type="file" id="resumeFile" accept=".geojson,.json,application/json,application/geo+json" hidden><button id="copyBtn">複製診斷報告</button></div>
+<p class="sub">官方總筆數、OBJECTID 清單和取得的幾何須全部一致才提供「完整」檔。若中途失敗，可下載「未完成續查檔」，下次匯入後繼續；接續前仍會重新核對當前官方 ID 清單，避免新舊資料混合。此功能不會繞過來源的 CORS、403 或授權限制。</p><div id="resumeStatus" class="status warn" style="margin-top:10px">尚未載入續查檔。若以前沒有下載過續查檔，直接開始查詢即可。</div>
+<p class="footnote"><a href="https://talis.moa.gov.tw/ALDOC/" target="_blank" rel="noopener noreferrer">農業部農地資料流通中心（申請／查找正式圖資）</a>　·　<a href="https://gis.forest.gov.tw/arcgis/rest/services/BA/BA_%E8%BE%B2%E6%A5%AD%E5%8F%8A%E8%BE%B2%E5%9C%B0%E8%B3%87%E6%BA%90%E7%9B%A4%E6%9F%A5%E5%9C%96%E8%B3%87/MapServer" target="_blank" rel="noopener noreferrer">官方 REST 服務資訊</a></p></section>
+<section class="panel"><h2>擷取進度與完整性</h2><div class="statgrid"><div class="stat"><strong id="total">—</strong><span>官方總筆數</span></div><div class="stat"><strong id="ids">—</strong><span>回傳的 OBJECTID</span></div><div class="stat"><strong id="done">0</strong><span>已取得且驗證地塊</span></div><div class="stat"><strong id="missing">—</strong><span>尚缺筆數</span></div></div><progress id="progress" value="0" max="1"></progress><div id="status" class="status" role="status" aria-live="polite">尚未查詢。設定範圍後可按「查詢官方地塊並核對」。</div><h2 style="margin-top:18px">診斷紀錄</h2><div class="log" id="log" aria-label="診斷紀錄"></div><p class="footnote">目前工作台僅能在瀏覽器允許跨網域讀取時直接下載。若來源拒絕請求，可以改由具權限的正式地理圖資下載渠道取得 GeoJSON，再用主系統「匯入地塊檔」載入。請遵守圖資授權與使用條件。</p></section></main>
+<script>
+(()=>{'use strict';
+const $=id=>document.getElementById(id);
+const BASE='https://gis.forest.gov.tw/arcgis/rest/services/BA/BA_%E8%BE%B2%E6%A5%AD%E5%8F%8A%E8%BE%B2%E5%9C%B0%E8%B3%87%E6%BA%90%E7%9B%A4%E6%9F%A5%E5%9C%96%E8%B3%87/MapServer';
+const PRESETS={huwei:[120.370,23.675,120.495,23.785],tuku:[120.310,23.620,120.445,23.760],joint:[120.305,23.615,120.500,23.790]};
+const params=new URLSearchParams(location.search), inbound=(params.get('bbox')||'').split(',').map(Number);if(inbound.length===4 && inbound.every(Number.isFinite)&&inbound[0]<inbound[2]&&inbound[1]<inbound[3]){PRESETS.url=inbound;}else{$('preset').querySelector('[value="url"]').remove();}
+const inputOrder=['west','south','east','north'];
+function applyPreset(value){if(!PRESETS[value])return;inputOrder.forEach((id,i)=>$(id).value=Number(PRESETS[value][i]).toFixed(6));}
+function bbox(){const b=inputOrder.map(id=>Number($(id).value));if(b.some(x=>!Number.isFinite(x)))throw Error('經緯度必須是數字');if(!(b[0]>=119&&b[2]<=122&&b[1]>=21&&b[3]<=26&&b[0]<b[2]&&b[1]<b[3]))throw Error('目前工具限制在臺灣附近的合理經緯度範圍');if((b[2]-b[0])*(b[3]-b[1])>0.15)throw Error('擷取範圍過大，建議縮小分批下載');return b;}
+let active=null,last=null,logs=[],resumeData=null;
+function say(s,kind=''){const e=$('status');e.textContent=s;e.className='status '+kind;}
+function log(s){const t=new Date().toLocaleTimeString('zh-TW',{hour12:false}),line=`[${t}] ${s}`;logs.push(line);$('log').textContent=logs.slice(-300).join('\n');$('log').scrollTop=$('log').scrollHeight;}
+function stats(total=null,ids=null,done=0,missing=null){$('total').textContent=total===null?'—':total.toLocaleString();$('ids').textContent=ids===null?'—':ids.toLocaleString();$('done').textContent=done.toLocaleString();$('missing').textContent=missing===null?'—':missing.toLocaleString();$('progress').max=Math.max(1,ids||total||1);$('progress').value=done;}
+function urlOf(layer,args){return BASE+'/'+layer+'/query?'+new URLSearchParams(args).toString();}
+const envelope=b=>JSON.stringify({xmin:b[0],ymin:b[1],xmax:b[2],ymax:b[3],spatialReference:{wkid:4326}});
+function spatialParams(b){return {where:'1=1',geometry:envelope(b),geometryType:'esriGeometryEnvelope',inSR:'4326',spatialRel:'esriSpatialRelIntersects'};}
+async function fetchJson(url,ctrl){const timer=setTimeout(()=>ctrl.abort(),25000);
+ try{const res=await fetch(url,{method:'GET',mode:'cors',cache:'no-store',credentials:'omit',signal:ctrl.signal});if(!res.ok)throw Error('HTTP '+res.status+' '+res.statusText);const body=await res.json();if(body.error)throw Error('ArcGIS '+(body.error.code||'')+'：'+(body.error.message||'unknown'));return body;
+ }catch(e){if(e instanceof TypeError)throw Error('瀏覽器無法讀取官方跨網域回應（可能是 CORS／連線阻擋），請使用官方圖資下載管道');throw e;
+ }finally{clearTimeout(timer);}}
+async function request(url,run){let lastErr;for(let k=0;k<3;k++){
+ if(run.stopped)throw Error('使用者已停止查詢');const ctrl=new AbortController();run.controller=ctrl;
+ try{return await fetchJson(url,ctrl);}catch(e){lastErr=e;if(run.stopped)throw Error('使用者已停止查詢');const m=String(e.message||e);if(/HTTP 403|HTTP 404|CORS|跨網域|ArcGIS 4[0-9]{2}|aborted|AbortError/i.test(m)||k===2)break;log('第 '+(k+1)+' 次請求失敗：'+m.slice(0,180)+'；準備重試');await new Promise(r=>setTimeout(r,400*(k+1)));}}
+ throw lastErr;
+}
+function objectId(feature){let p=feature?.properties||{},v=p.OBJECTID??p.objectid??p.ObjectId??p.ObjectID??feature?.id??p.FID;if(v===null||v===undefined||String(v).trim()==='')return null;return Number.isSafeInteger(Number(v))?Number(v):null;}
+function validateFeature(f){if(f?.type!=='Feature'||!f.geometry||!['Polygon','MultiPolygon'].includes(f.geometry.type))throw Error('來源包含非 Polygon／MultiPolygon 幾何');const parts=f.geometry.type==='Polygon'?[f.geometry.coordinates]:f.geometry.coordinates;if(!Array.isArray(parts)||!parts.length)throw Error('取得空幾何');let n=0;for(const rings of parts){if(!Array.isArray(rings)||!rings.length)throw Error('多邊形不完整');for(const ring of rings){if(!Array.isArray(ring)||ring.length<4)throw Error('不合法的地塊環');for(const p of ring){if(!Array.isArray(p)||p.length<2||!Number.isFinite(p[0])||!Number.isFinite(p[1])||Math.abs(p[0])>180||Math.abs(p[1])>90)throw Error('地塊座標錯誤或非 WGS84');n++;}}}if(n>100000)throw Error('單一地塊幾何異常龐大');}
+function jobSummary(run,complete){const stat=run?{layer:run.layer,year:run.year,bounds:run.bounds,expected:run.count,ids:run.ids?.length||0,downloaded:run.features.size,fromResume:run.fromResume||0,batches:run.batches||0,errors:run.errors,complete}:{};return 'V3.3.5 F03擷取診斷\n日期：'+new Date().toLocaleString('zh-TW')+'\n頁面：'+location.origin+location.pathname+'\n'+JSON.stringify(stat,null,2)+'\n'+logs.join('\n');}
+function createExport(run,complete){const acq={status:complete?'complete':'partial',year:run.year,layer:run.layer,source:'官方 F03 MapServer /query，瀏覽器取得',sourceUrl:BASE,queryBounds4326:run.bounds,expectedCount:run.count,returnedIdCount:run.ids.length,downloadedCount:run.features.size,queriedAt:new Date().toISOString(),errors:run.errors,collectorVersion:'3.3.5'};if(!complete)acq.expectedObjectIds=[...run.ids];return {type:'FeatureCollection',__f03_acquisition:acq,features:[...run.features.values()].sort((a,b)=>objectId(a)-objectId(b))};}
+function saveGeoJSON(complete){if(!last)return;const obj=createExport(last,complete),blob=new Blob([JSON.stringify(obj)],{type:'application/geo+json;charset=utf-8'}),a=document.createElement('a'),u=URL.createObjectURL(blob),b=last.bounds;
+ a.href=u;a.download=`F03_${last.year}_${b[0].toFixed(3)}_${b[1].toFixed(3)}_${b[2].toFixed(3)}_${b[3].toFixed(3)}_${complete?'verified':'RESUME_INCOMPLETE'}.geojson`;a.click();setTimeout(()=>URL.revokeObjectURL(u),12000);
+ log('已下載'+(complete?'完整校對通過':'未完成續查資料')+' GeoJSON，'+last.features.size+'筆；未完成檔不能作為完整圖資匯入主系統');}
+function sameBounds(a,b){return Array.isArray(a)&&Array.isArray(b)&&a.length===4&&b.length===4&&a.every((n,i)=>Math.abs(Number(n)-Number(b[i]))<1e-8);}
+function loadResumeJSON(raw){const acq=raw?.__f03_acquisition;
+ if(raw?.type!=='FeatureCollection'||!Array.isArray(raw.features)||acq?.status!=='partial')throw Error('僅能接續本工具匯出的未完成 GeoJSON');
+ if(acq.sourceUrl!==BASE||![111,112].includes(Number(acq.year))||Number(acq.layer)!==(Number(acq.year)===112?4:5))throw Error('來源、年度或圖層不相符，拒絕續查');
+ const b=acq.queryBounds4326;if(!Array.isArray(b)||b.length!==4||b.some(v=>typeof v!=='number'||!Number.isFinite(v))||!(b[0]<b[2]&&b[1]<b[3]))throw Error('續查檔缺少合法的研究矩形');
+ if(!Array.isArray(acq.expectedObjectIds)||acq.expectedObjectIds.some(v=>!Number.isSafeInteger(v))||new Set(acq.expectedObjectIds).size!==acq.expectedObjectIds.length)throw Error('續查檔缺少完整或唯一的官方 ID 清單');
+ if(!Number.isSafeInteger(acq.expectedCount)||acq.expectedCount!==acq.expectedObjectIds.length||acq.expectedCount<1)throw Error('續查檔官方筆數或 ID 清單不一致');
+ if(!Number.isSafeInteger(acq.downloadedCount)||acq.downloadedCount!==raw.features.length||raw.features.length>acq.expectedCount)throw Error('續查檔實際地塊筆數與宣告不符');
+ const allowed=new Set(acq.expectedObjectIds),features=new Map();for(const f of raw.features){validateFeature(f);const id=objectId(f);if(id===null||!allowed.has(id)||features.has(id))throw Error('續查檔有未知、缺少或重複的 OBJECTID');features.set(id,f);}
+ return {bounds:b,year:Number(acq.year),layer:Number(acq.layer),count:acq.expectedCount,ids:[...acq.expectedObjectIds].sort((a,b)=>a-b),features};
+}
+async function fetchBatch(batch,run,depth=0){
+ const endpoint=urlOf(run.layer,{objectIds:batch.join(','),outFields:'*',returnGeometry:'true',outSR:'4326',f:'geojson'});
+ try{const geo=await request(endpoint,run);if(geo?.type!=='FeatureCollection'||!Array.isArray(geo.features))throw Error('官方沒有回傳 GeoJSON FeatureCollection');
+  const expected=new Set(batch),out=new Map();for(const f of geo.features){validateFeature(f);const id=objectId(f);if(id===null||!expected.has(id)||out.has(id))throw Error('官方回傳非指定、重複或無 OBJECTID 地塊');out.set(id,f);}
+  if(out.size!==batch.length)throw Error('本批少回傳 '+(batch.length-out.size)+' 筆幾何');
+  run.batches++;return out;
+ }catch(e){const msg=String(e.message||e);
+  if(batch.length>10&&depth<4&&!/HTTP 40[134]|CORS|跨網域|權限|停止|aborted|AbortError|非指定|重複|無 OBJECTID/i.test(msg)){
+   log('一批 '+batch.length+' 筆失敗，切分成較小批次重試：'+msg.slice(0,110));
+   const n=Math.ceil(batch.length/2),a=await fetchBatch(batch.slice(0,n),run,depth+1),b=await fetchBatch(batch.slice(n),run,depth+1);
+   return new Map([...a,...b]);
+  }throw e;
+ }
+}
+function setResumeStatus(t,kind='warn'){$('resumeStatus').textContent=t;$('resumeStatus').className='status '+kind;}
+async function importResumeFile(file){if(!file||active)return;try{if(file.size>65*1024*1024)throw Error('續查檔大於65MB，請分區擷取');const candidate=loadResumeJSON(JSON.parse(await file.text()));resumeData=candidate;
+ $('year').value=String(candidate.year);$('preset').value='custom';inputOrder.forEach((id,i)=>$(id).value=candidate.bounds[i].toFixed(6));
+ setResumeStatus(`已載入續查檔：民國${candidate.year}年，已取得 ${candidate.features.size}/${candidate.count} 筆。按「查詢官方地塊並核對」接續；會先重新確認官方 ID 清單。`);$('cancelResumeBtn').hidden=false;
+ log('已載入續查檔（尚未重新核對官方 ID）：'+candidate.features.size+'/'+candidate.count);$('downloadBtn').disabled=true;
+ }catch(e){resumeData=null;$('cancelResumeBtn').hidden=true;setResumeStatus('續查檔無法使用：'+String(e.message||e),'bad');}}
+async function start(){if(active)return;logs=[];$('log').textContent='';$('downloadBtn').disabled=true;$('partialBtn').hidden=true;let b,year,layer;
+ try{b=bbox();year=Number($('year').value);layer=year===112?4:5;if(resumeData&&(resumeData.year!==year||!sameBounds(resumeData.bounds,b)))throw Error('設定範圍／年度與續查檔不同。請先重新載入相同範圍的續查檔，或點「取消續查」。');}catch(e){say(e.message,'bad');return;}
+ const run={bounds:b,year,layer,controller:null,stopped:false,ids:[],count:null,features:new Map(),errors:[],fromResume:0,batches:0};last=run;active=run;$('startBtn').disabled=true;$('stopBtn').disabled=false;stats();
+ const sp=spatialParams(b);log(`開始查詢民國${year}年，圖層${layer}；範圍 ${b.join(', ')}`);say('正在核對官方總筆數與 ID 清單…');
+ try{
+  const countJson=await request(urlOf(layer,{...sp,returnCountOnly:'true',f:'json'}),run);
+  if(!Number.isSafeInteger(countJson.count)||countJson.count<0)throw Error('官方總筆數格式無效');run.count=countJson.count;
+  log('官方總筆數 '+run.count);
+  const idsJson=await request(urlOf(layer,{...sp,returnIdsOnly:'true',f:'json'}),run);
+  if(!Array.isArray(idsJson.objectIds))throw Error('官方 ID 清單沒有 objectIds（伺服器可能不允許擷取）');
+  run.ids=idsJson.objectIds.map(Number).filter(Number.isSafeInteger);const unique=new Set(run.ids);
+  stats(run.count,unique.size,0,Math.max(0,run.count-unique.size));
+  if(unique.size!==run.count||run.ids.length!==unique.size)throw Error(`官方筆數與 OBJECTID 清單不一致（count=${run.count}, ids=${run.ids.length}, distinct=${unique.size}），本次不會宣稱完整`);
+  run.ids=[...unique].sort((a,b)=>a-b);log('OBJECTID 核對通過 '+run.ids.length+' 筆');
+  if(resumeData){if(resumeData.count!==run.count||resumeData.ids.length!==run.ids.length||resumeData.ids.some((id,i)=>id!==run.ids[i]))throw Error('官方 OBJECTID 或筆數與續查檔不同。已拒絕混用兩次來源；原續查檔請妥善保存');
+   run.features=new Map(resumeData.features);run.fromResume=run.features.size;log('續查資料已通過重新比對，保留 '+run.fromResume+' 筆已取得的地塊');
+   stats(run.count,run.ids.length,run.features.size,run.count-run.features.size);
+  }
+  if(!run.ids.length){say('官方查詢回傳 0 筆。該矩形沒有取得 F03 紀錄；此結果不代表其他地區沒有畜牧用地。','warn');return;}
+  const remaining=run.ids.filter(id=>!run.features.has(id));log('本次尚需擷取 '+remaining.length+' 筆（已保留 '+run.fromResume+' 筆）');
+  const batchSize=80;for(let offset=0;offset<remaining.length;offset+=batchSize){if(run.stopped)throw Error('已停止查詢');const batch=remaining.slice(offset,offset+batchSize);
+   const got=await fetchBatch(batch,run);for(const [id,f] of got){if(!unique.has(id)||run.features.has(id))throw Error('遇到跨批次重複或非預期的 OBJECTID '+id);run.features.set(id,f);}
+   stats(run.count,run.ids.length,run.features.size,run.count-run.features.size);say(`正在擷取：${run.features.size.toLocaleString()}/${run.count.toLocaleString()} 塊；請保持此頁開啟`);
+   log(`批次 ${Math.floor(offset/batchSize)+1}/${Math.ceil(remaining.length/batchSize)}：新增 ${got.size} 筆，累積 ${run.features.size} 筆`);
+  }
+  if(run.features.size!==run.count)throw Error('最終完整性檢查失敗：取得筆數與官方總筆數不相符');
+  $('downloadBtn').disabled=false;const bytes=new Blob([JSON.stringify(createExport(run,true))]).size;
+  say(`完整性校驗通過：官方 ${run.count.toLocaleString()} 筆，取得 ${run.features.size.toLocaleString()} 筆（續查保留 ${run.fromResume} 筆）。可下載 GeoJSON（約 ${(bytes/1024/1024).toFixed(1)} MB）。`);resumeData=null;$('cancelResumeBtn').hidden=true;setResumeStatus('已完成完整性校驗，可下載完整 GeoJSON；下次擷取其他區域時不會沿用本次續查檔。','');
+  log('✔ 完整性校驗通過。這是研究矩形內相交圖徵的查詢完整性，不代表全鄉鎮或盤查最新年度。');
+ }catch(e){const m=String(e.message||e);run.errors.push(m);stats(run.count,new Set(run.ids).size,run.features.size,run.count===null?null:Math.max(0,run.count-run.features.size));say('查詢未完成：'+m+'。不得將本次結果當成全區完整地塊。','bad');log('✖ '+m);if(run.features.size&&run.ids.length===run.count){$('partialBtn').hidden=false;$('partialBtn').disabled=false;setResumeStatus('本次未完成，但已取得 '+run.features.size+' 筆，可下載未完成續查檔；下次匯入可續傳。','warn');}}
+ finally{$('startBtn').disabled=false;$('stopBtn').disabled=true;active=null;run.controller=null;}
+}
+$('startBtn').addEventListener('click',start);$('resumeBtn').addEventListener('click',()=>$('resumeFile').click());$('cancelResumeBtn').addEventListener('click',()=>{if(active)return;resumeData=null;$('cancelResumeBtn').hidden=true;setResumeStatus('已取消續查，下一次從頭查詢目前畫面指定範圍。');});$('resumeFile').addEventListener('change',e=>{const file=e.target.files?.[0];e.target.value='';importResumeFile(file);});$('stopBtn').addEventListener('click',()=>{if(active){active.stopped=true;active.controller?.abort();say('正在停止目前請求，已取得的資料不會自動標示為完整。','warn');}});
+$('downloadBtn').addEventListener('click',()=>saveGeoJSON(true));$('partialBtn').addEventListener('click',()=>saveGeoJSON(false));
+$('copyBtn').addEventListener('click',async()=>{const t=jobSummary(last,!!last&&last.count!==null&&last.features.size===last.count&&!last.errors.length&&$('downloadBtn').disabled===false);try{await navigator.clipboard.writeText(t);say('診斷報告已複製。');}catch(e){const area=document.createElement('textarea');area.value=t;document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();say('已嘗試複製診斷報告。');}});
+$('preset').addEventListener('change',e=>applyPreset(e.target.value));for(const id of inputOrder)$(id).addEventListener('change',()=>{$('preset').value='custom';});
+$('year').value=params.get('year')==='111'?'111':'112';$('preset').value=PRESETS.url?'url':'joint';applyPreset($('preset').value);
+window.__F03_COLLECTOR_TEST__={spatialParams,objectId,validateFeature,createExport,bbox,loadResumeJSON,sameBounds,fetchBatch};
+})();
+</script></body></html>

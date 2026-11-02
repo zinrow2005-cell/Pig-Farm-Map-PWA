@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    function admin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
+    }
+    function allowedCoords(data, latKey, lngKey) {
+      let lat = data.get(latKey, null);
+      let lng = data.get(lngKey, null);
+      return (lat == null && lng == null) ||
+        (lat is number && lng is number && lat >= 21 && lat <= 27 && lng >= 118 && lng <= 123);
+    }
+    function validFarm(data, id) {
+      return data.keys().hasAll(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId'])
+        && data.keys().hasOnly(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId'])
+        && data.uid == id && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 100
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 150
+        && data.county is string && data.county.size() > 0 && data.county.size() <= 40
+        && data.town is string && data.town.size() > 0 && data.town.size() <= 40
+        && data.address is string && data.address.size() <= 220
+        && data.version is int && data.version >= 1
+        && data.updatedAt == request.time
+        && allowedCoords(data,'lat','lng');
+    }
+    function validSuggestion(data) {
+      return data.keys().hasAll(['farmUid','baseVersion','proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
+        && data.keys().hasOnly(['farmUid','baseVersion','proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
+        && data.farmUid is string && data.farmUid.size() > 0 && data.farmUid.size() <= 100
+        && data.baseVersion is int && data.baseVersion >= 1
+        && data.proposedName is string && data.proposedName.size() > 0 && data.proposedName.size() <= 150
+        && data.proposedCounty is string && data.proposedCounty.size() > 0 && data.proposedCounty.size() <= 40
+        && data.proposedTown is string && data.proposedTown.size() > 0 && data.proposedTown.size() <= 40
+        && data.proposedAddress is string && data.proposedAddress.size() <= 220
+        && data.note is string && data.note.size() <= 500
+        && allowedCoords(data,'proposedLat','proposedLng');
+    }
+    // 管理者文件只能由專案擁有者在 Firebase Console / 受信任 Admin SDK 建立。
+    // 一般使用者即使知道自己的 UID，也不能建立或修改這個角色。
+    match /admins/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, create, update, delete: if false;
+    }
+    match /farms/{farmId} {
+      // 地址／座標公開查詢，不代表查核／核定資料同步。
+      allow read: if true;
+      // 管理員首次匯入只准新建，不能用舊名冊覆蓋已存在的資料。
+      allow create: if admin() && validFarm(request.resource.data, farmId)
+        && request.resource.data.version == 1
+        && request.resource.data.approvedSuggestionId == null;
+      // 採納建議只能用跨文件交易，兩份資料在相同提交內一致更新。
+      allow update: if admin() && validFarm(request.resource.data,farmId)
+        && request.resource.data.version == resource.data.version + 1
+        && request.resource.data.approvedSuggestionId is string
+        && request.resource.data.approvedSuggestionId != resource.data.approvedSuggestionId
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.status == 'approved'
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.reviewedBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.farmUid == farmId
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.baseVersion == resource.data.version
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedName == request.resource.data.name
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedCounty == request.resource.data.county
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedTown == request.resource.data.town
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedAddress == request.resource.data.address
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedLat == request.resource.data.lat
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedLng == request.resource.data.lng;
+      allow delete: if false;
+    }
+    match /suggestions/{suggestionId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && validSuggestion(request.resource.data)
+        && request.resource.data.submittedBy == request.auth.uid
+        && request.resource.data.submittedAt == request.time
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reviewedBy == null
+        && request.resource.data.reviewedAt == null
+        && exists(/databases/$(database)/documents/farms/$(request.resource.data.farmUid))
+        && get(/databases/$(database)/documents/farms/$(request.resource.data.farmUid)).data.version == request.resource.data.baseVersion;
+      allow update: if admin() && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedBy','reviewedAt'])
+        && request.resource.data.status in ['approved','rejected']
+        && request.resource.data.reviewedBy == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && (request.resource.data.status == 'rejected' || (
+          getAfter(/databases/$(database)/documents/farms/$(resource.data.farmUid)).data.approvedSuggestionId == suggestionId
+          && getAfter(/databases/$(database)/documents/farms/$(resource.data.farmUid)).data.version == resource.data.baseVersion + 1
+        ));
+      allow delete: if false;
+    }
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
