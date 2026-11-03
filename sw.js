@@ -1,8 +1,8 @@
-/* 豬場地圖查核 V3.3.19：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
-const CACHE='pigfarm-shell-v3.3.19-mobile-20261102';
+/* 豬場地圖查核 V3.3.20：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
+const CACHE='pigfarm-shell-v3.3.20-fixed-assets-20261103';
 const ASSETS=[
  './index.html','./manifest.webmanifest','./favicon.ico',
- './assets/css/app.css','./assets/css/mobile-v3319.css','./assets/js/mobile-v3319.js','./assets/js/f03-services.js',
+ './assets/css/app-v3320.css','./assets/css/mobile-v3320.css','./assets/js/mobile-v3320.js','./assets/js/f03-services.js',
  './assets/js/pig-core.js','./assets/js/cloud-config.js','./assets/js/community.js','./assets/js/app.js','./assets/js/pwa-install.js',
  './data/f03-y112-yunlin.js','./data/legacy-farms.js',
  './icons/app-192.png','./icons/app-512.png','./icons/app-maskable-512.png','./icons/apple-touch-icon.png'

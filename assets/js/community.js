@@ -1,4 +1,4 @@
-/* 豬場查核 V3.3.19｜Google Firebase Authentication + Cloud Firestore。 */
+/* 豬場查核 V3.3.20｜Google Firebase Authentication + Cloud Firestore。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
