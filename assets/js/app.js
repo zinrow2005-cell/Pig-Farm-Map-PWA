@@ -458,7 +458,19 @@ function renderStatExplorer(){
  }).join(''):'<p class="empty">此條件沒有紀錄，請調整搜尋。</p>';
 }
 function initStatExplorer(){
- document.querySelectorAll('[data-stat-view]').forEach(button=>button.addEventListener('click',()=>showStatExplorer(button.dataset.statView)));
+ // 使用事件委派，避免載入順序或重新渲染使卡片失去點擊事件。
+ document.addEventListener('click',event=>{
+  const button=event.target.closest?.('[data-stat-view]');
+  if(!button)return;
+  event.preventDefault();
+  try{showStatExplorer(button.dataset.statView);}catch(error){
+   console.error('[統計追查] 無法開啟',error);
+   const panel=$('statExplorer');panel.hidden=false;$('statExplorerScrim').hidden=false;
+   $('statExplorerTitle').textContent='查詢發生錯誤';
+   $('statExplorerCount').textContent='請將錯誤訊息回報以便修正';
+   $('statExplorerList').textContent='無法開啟追查：'+String(error?.message||error);
+  }
+ },true);
  $('statExplorerClose').addEventListener('click',closeStatExplorer);$('statExplorerScrim').addEventListener('click',closeStatExplorer);
  $('statExplorerSearch').addEventListener('input',renderStatExplorer);$('statExplorerDecision').addEventListener('change',renderStatExplorer);
  $('statExplorerList').addEventListener('click',e=>{

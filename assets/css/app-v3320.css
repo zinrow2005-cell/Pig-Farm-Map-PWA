@@ -355,3 +355,9 @@
 .stat-explorer-item:hover,.stat-explorer-item:focus-visible{background:#eef7f0;border-color:#95c5ad}.stat-explorer-item strong,.stat-explorer-item small,.stat-explorer-item span{display:block;line-height:1.5}.stat-explorer-item strong{font-size:14px;color:#244b39}.stat-explorer-item small{font-size:12px;color:#62776b}.stat-explorer-item span{font-size:12px;color:#287b60;margin-top:5px}
 .stat-explorer-foot{padding:10px 14px;border-top:1px solid #e6eee8;font-size:11px;color:#69796e}
 @media(max-width:700px){.metrics-clickable .metric-link{padding:4px 7px;min-height:35px}.stat-explorer{height:calc(100dvh - 28px);max-height:none;width:calc(100vw - 16px);border-radius:13px}.stat-explorer-head{padding:11px}.stat-explorer-tools{padding:8px}.stat-explorer-tools input,.stat-explorer-tools select{font-size:13px;min-width:0}.stat-explorer-tools select{max-width:39%}}
+
+/* V3.3.27 可觸控統計卡片及強制最上層明細面板 */
+.metrics-clickable .metric-link{touch-action:manipulation;user-select:none;position:relative;pointer-events:auto}
+.stat-explorer-scrim{z-index:30000!important}
+.stat-explorer{z-index:30001!important;overscroll-behavior:contain}
+.stat-explorer[hidden],.stat-explorer-scrim[hidden]{display:none!important}
