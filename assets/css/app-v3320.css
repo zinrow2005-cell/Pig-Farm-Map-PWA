@@ -333,3 +333,25 @@
 /* V3.3.23: reversible audit marks / responsive marker sizing */
 .audit-remove{color:#ab3333!important;border:1px solid #d9a5a5!important;background:#fff4f4!important}
 .audit-map-pin{box-sizing:border-box;line-height:1;transition:width .12s,height .12s}
+
+/* V3.3.24: keep the remove action visible in the mobile review sheet header */
+.audit-sheet-controls{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+#auditRemove:not([hidden]){display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:34px;padding:6px 9px;font-size:12px;font-weight:700}
+#auditRemove[hidden]{display:none!important}
+@media(max-width:700px){#auditRemove:not([hidden]){min-height:36px;padding:6px 7px;font-size:12px}.audit-panel .audit-top{align-items:flex-start}.audit-heading{min-width:0}}
+
+/* V3.3.26: accessible statistics drill-down, desktop + mobile. */
+.metrics-clickable .metric-link{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:5px 9px;color:inherit;font:inherit;cursor:pointer;min-height:39px}
+.metrics-clickable .metric-link:hover,.metrics-clickable .metric-link:focus-visible{background:#e1efe8;border-color:#9ec8b6;outline-offset:2px}
+.metrics-clickable .metric-link b{font-weight:800}.metrics-clickable .metric-link span{text-decoration:underline;text-underline-offset:3px;text-decoration-color:#a6beb2}
+.stat-explorer-scrim{position:fixed;inset:0;z-index:1790;background:#14231b8c}
+.stat-explorer{position:fixed;z-index:1800;top:50%;left:50%;transform:translate(-50%,-50%);width:min(640px,calc(100vw - 24px));height:min(78dvh,760px);background:white;border-radius:16px;box-shadow:0 18px 70px #15271b55;display:flex;flex-direction:column;overflow:hidden}
+.stat-explorer[hidden],.stat-explorer-scrim[hidden]{display:none!important}
+.stat-explorer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 17px;border-bottom:1px solid #e0e9e2}
+.stat-explorer-head h2{margin:0 0 4px;font-size:19px;color:#214736}.stat-explorer-head small{color:#627d6a}.stat-explorer-head button{padding:10px;border:1px solid #d5e2d9;background:#f7faf8;border-radius:9px}
+.stat-explorer-tools{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid #e8eee9}.stat-explorer-tools input{flex:1;min-width:0}.stat-explorer-tools input,.stat-explorer-tools select{padding:10px;border:1px solid #cbdcd2;border-radius:9px;background:white;font-size:14px}
+.stat-explorer-tools select[hidden]{display:none}.stat-explorer-list{overflow-y:auto;flex:1;padding:8px 12px;overscroll-behavior:contain}
+.stat-explorer-item{display:block;text-align:left;width:100%;border:1px solid #e5ede7;border-radius:11px;background:white;padding:12px;margin:6px 0;cursor:pointer;overflow-wrap:anywhere}
+.stat-explorer-item:hover,.stat-explorer-item:focus-visible{background:#eef7f0;border-color:#95c5ad}.stat-explorer-item strong,.stat-explorer-item small,.stat-explorer-item span{display:block;line-height:1.5}.stat-explorer-item strong{font-size:14px;color:#244b39}.stat-explorer-item small{font-size:12px;color:#62776b}.stat-explorer-item span{font-size:12px;color:#287b60;margin-top:5px}
+.stat-explorer-foot{padding:10px 14px;border-top:1px solid #e6eee8;font-size:11px;color:#69796e}
+@media(max-width:700px){.metrics-clickable .metric-link{padding:4px 7px;min-height:35px}.stat-explorer{height:calc(100dvh - 28px);max-height:none;width:calc(100vw - 16px);border-radius:13px}.stat-explorer-head{padding:11px}.stat-explorer-tools{padding:8px}.stat-explorer-tools input,.stat-explorer-tools select{font-size:13px;min-width:0}.stat-explorer-tools select{max-width:39%}}
