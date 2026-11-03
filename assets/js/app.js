@@ -1995,8 +1995,9 @@ function initF03MatchPanel(){
 function applyCloudFarms(rows){
  if(!Array.isArray(rows)||!rows.length)return;
  let changed=false;
- for(const cloud of rows){let r=STATE.records.find(x=>x.uid===cloud.uid);if(!r){const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;r=C.normalize({uid:cloud.uid,name:cloud.name||'未命名豬場',county:cloud.county||'雲林縣',town:cloud.town||'',address:cloud.address||'',geometry:loc,category:'pig',review:'pending',source:'管理員雲端新增',createdAt:new Date().toISOString()});STATE.records.push(r);changed=true;}
+ for(const cloud of rows){let r=STATE.records.find(x=>x.uid===cloud.uid);if(!r){const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;r=C.normalize({uid:cloud.uid,name:cloud.name||'未命名豬場',county:cloud.county||'雲林縣',town:cloud.town||'',address:cloud.address||'',geometry:loc,category:cloud.auditDecision==='maybe'?'maybe':'pig',review:'pending',source:'管理員雲端新增',createdAt:new Date().toISOString()});STATE.records.push(r);changed=true;}
   const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;
+  if(['pig','maybe'].includes(cloud.auditDecision)&&r.source==='管理員雲端新增'&&r.category!==cloud.auditDecision){r.category=cloud.auditDecision;changed=true;}
   const prior=C.center(r),now=loc?[loc.coordinates[1],loc.coordinates[0]]:null;
   if(r.name!==cloud.name||r.county!==cloud.county||r.town!==cloud.town||r.address!==cloud.address||JSON.stringify(prior)!==JSON.stringify(now)){
    Object.assign(r,{name:cloud.name||r.name,county:cloud.county||r.county,town:cloud.town||r.town,address:cloud.address??''});
@@ -2004,7 +2005,7 @@ function applyCloudFarms(rows){
    changed=true;
   }
  }
- if(changed){updateTownOptions();renderStats();renderList();}
+ if(changed){updateTownOptions();renderStats();renderList();if(STATE.mapReady){renderMarkers();renderAuditPins();}F03_MATCH.dirty=true;}
 }
 async function init(){const f03Diag=$('f03Diag');if(f03Diag)f03Diag.addEventListener('click',()=>window.open('tools/f03-test.html','_blank','noopener'));if(PREVIEW_ENV){const box=$('previewNotice');if(box)box.hidden=false;}bind();setupCompactWorkbench();initF03MatchPanel();initStatExplorer();await initializeData();updateTownOptions();renderList();refreshWorkflowSummary();$('showF03').checked=STATE.showF03;$('f03Year').value=String(STATE.year);$('opacity').value=String(Math.round(STATE.opacity*100));$('opacityLabel').textContent=Math.round(STATE.opacity*100)+'%';$('showAuditAreas').checked=STATE.showAuditAreas;$('maps').className='maps '+STATE.view;document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===STATE.view));try{const savedMode=localStorage.getItem('pig-f03-source-mode-v337');if(['builtin','online','offline'].includes(savedMode))f03SourceMode=savedMode;}catch(e){}
   let bundledError='';try{
@@ -2022,7 +2023,7 @@ async function init(){const f03Diag=$('f03Diag');if(f03Diag)f03Diag.addEventList
   $('f03Source').value=f03SourceMode;updateF03YearInfo();await reloadOfflineF03(STATE.year);
   if(bundledError)offlineStatus('內建圖資校驗失敗，已退回線上圖層：'+bundledError,true);
   else if(f03SourceMode==='builtin')offlineStatus(offlineSummary());
-  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),applyApproved:applyCloudFarms,getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
+  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),applyApproved:applyCloudFarms,focusApproved:uid=>focusFarmRecord(uid,{move:true}),notifyApproved:message=>notice(message),getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){
  if(STATE.viewSaveTimer){clearTimeout(STATE.viewSaveTimer);STATE.viewSaveTimer=null;persist();}
  if(dirtyRev>committedRev)flushSave();

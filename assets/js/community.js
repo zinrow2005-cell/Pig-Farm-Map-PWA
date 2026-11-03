@@ -1,4 +1,4 @@
-/* 豬場查核 V3.3.30｜Google Firebase Authentication + Cloud Firestore。 */
+/* 豬場查核 V3.3.37｜表單儲存後地圖重繪與互動驗收修正。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
@@ -17,7 +17,7 @@ function err(e){const code=String(e?.code||''); if(code.includes('permission-den
  return clean(e?.message||e,200);}
 function enabled(){return configured;}
 function open(){const p=$('cloudPanel');if(!p)return;p.hidden=false;renderUser();renderProposals();if(!configured)status('尚未填入 Firebase Web 設定；目前仍使用本機豬場資料，沒有雲端同步',true);}
-function close(){if($('cloudPanel'))$('cloudPanel').hidden=true;auditContext=null;}
+function close(){if($('cloudPanel')){$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');}auditContext=null;}
 function renderUser(){
  const who=$('cloudWho'),sign=$('cloudSignIn'),out=$('cloudSignOut'),submit=$('cloudSubmit'),seed=$('cloudSeed');
  const label=user?(admin?'管理員':(user.displayName||user.email||'已登入')):'Google 登入';
@@ -37,7 +37,7 @@ function renderProposals(){const box=$('cloudProposals');if(!box)return;
  const combined=[...newSubmissions.map(p=>({...p,kind:'new'})),...proposals];
  box.innerHTML=combined.length?combined.map(p=>`<article class="cloud-proposal"><div><strong>${esc(p.proposedName||p.farmUid)}</strong><small> ${esc(p.status==='approved'?'已採納':p.status==='rejected'?'未採納':'待確認')} · ${esc(proposalDate(p.submittedAt))}</small></div><div>${esc(p.proposedCounty)} ${esc(p.proposedTown)} · ${esc(p.proposedAddress)}</div><small>座標：${p.proposedLat===null?'未提供':esc(p.proposedLat)}, ${p.proposedLng===null?'未提供':esc(p.proposedLng)}</small>${p.note?`<small>依據：${esc(p.note)}</small>`:''}${p.kind==='new'?'<small>新增豬場申請</small>':''}${admin&&p.status==='pending'?`<div class="cloud-actions"><button type="button" data-approve="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">${p.kind==='new'?'核准新增':'確認採納'}</button><button type="button" data-reject="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">不採納</button></div>`:''}</article>`).join(''):'<p class="subtle">目前沒有共用編輯紀錄。</p>';
 }
-function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到此豬場紀錄',true);return;}activeFarm=uid;
+function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到此豬場紀錄',true);return;}activeFarm=uid;$('cloudPanel').classList.add('cloud-form-active');
  const cloud=liveFarms.get(uid)||{};
  const geo=r.geometry?.type==='Point'?r.geometry.coordinates:null;
  $('cloudFarm').textContent=(cloud.name||r.name)+' · '+(cloud.town||r.town||'鄉鎮待查')+' · '+uid;
@@ -53,7 +53,7 @@ function beginNew(lat=null,lng=null){
  open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
  const hasCoords=lat!==null&&lng!==null;
  newPoint=hasCoords?{lat:Number(lat),lng:Number(lng)}:{};
- $('cloudEditForm').hidden=true;$('cloudNewForm').hidden=false;
+ $('cloudPanel').classList.add('cloud-form-active');$('cloudEditForm').hidden=true;$('cloudNewForm').hidden=false;
  $('cloudNewName').value='';$('cloudNewCounty').value='雲林縣';$('cloudNewTown').value='';$('cloudNewAddress').value='';
  $('cloudNewLat').value=hasCoords?Number(lat).toFixed(8):'';
  $('cloudNewLng').value=hasCoords?Number(lng).toFixed(8):'';
@@ -61,6 +61,14 @@ function beginNew(lat=null,lng=null){
  status(hasCoords?'已從地圖取得座標，請填入豬場名稱與地址後確認。':'請填入豬場資料與 WGS84 經緯度。');
  $('cloudNewName').focus();return true;
 }
+// The identity of a parcel/point must remain stable across clicks and reloads.
+// This is NOT a server-side uniqueness guarantee against arbitrary external clients.
+function stableKey(value){let h=2166136261;for(const ch of String(value)){h^=ch.codePointAt(0);h=Math.imul(h,16777619);}return (h>>>0).toString(36);}
+function draftIdentity(lat,lng){
+ const key=clean(auditContext?.parcelKey,160);
+ return key?`audit-${stableKey(key)}-${stableKey('parcel:'+key)}`:`point-${Math.round(lat*1e6)}-${Math.round(lng*1e6)}`;
+}
+function sameFarmPlace(f,lat,lng){return f.lat!=null&&f.lng!=null&&Math.hypot((Number(f.lat)-lat)*110574,(Number(f.lng)-lng)*111320*Math.cos(lat*Math.PI/180))<=8;}
 async function createFarm(event){
  event.preventDefault();if(!db||!user||!adminReady){status('請等待 Google 身分及管理員權限確認完成再送出。',true);return;}
  if(newBusy)return;
@@ -70,22 +78,64 @@ async function createFarm(event){
  if(!latText||!lngText){status('新增地圖標記必須有經緯度。請使用「＋ 標記點」在地圖選位置，或填入正確座標。',true);return;}
  const lat=Number(latText),lng=Number(lngText);
  if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<21||lat>27||lng<118||lng>123){status('經緯度不在台灣有效範圍，請檢查。',true);return;}
- if([...liveFarms.values()].some(f=>f.lat!=null&&f.lng!=null&&Math.abs(Number(f.lat)-lat)<0.00001&&Math.abs(Number(f.lng)-lng)<0.00001)){
-  if(!confirm('已有豬場紀錄位於幾乎相同的位置。確定要新增不同豬場，避免重複建檔？'))return;
- }
- if(!confirm(`確定${admin?'直接建立正式豬場':'提交管理員審查'}「${name}」？\n位置：${county}${town} ${address}\n座標：${lat}, ${lng}`))return;
- newBusy=true;$('cloudNewSubmit').disabled=true;status('正在寫入 Firestore，尚未完成儲存…');
+ const parcelKey=clean(auditContext?.parcelKey,160),decision=auditContext?.decision||'pig';
+ const identifier=draftIdentity(lat,lng);
+ const nearby=[...liveFarms.values()].filter(f=>sameFarmPlace(f,lat,lng)||(parcelKey&&f.auditParcelKey===parcelKey));
+ // Several pre-existing records at one parcel may be genuine separate farms.
+ // Never guess which one to overwrite and never add yet another duplicate.
+ if(admin&&nearby.length>1){status(`附近或相同地塊已有 ${nearby.length} 筆正式紀錄：${nearby.slice(0,3).map(f=>f.name||f.uid).join('、')}。請先從清單選擇正確豬場進行「編輯」，暫停新增以避免重複。`,true);return;}
+ if(admin&&farmsFromCache){status('正在等待伺服器同步正式豬場清單，尚不能安全判斷重複位置。請先按「↻ 同步」再儲存。',true);return;}
+ if(!admin&&nearby.length){status('此位置已有正式豬場紀錄，請從清單選取該牧場後提交資料更正，避免重複送出新增申請。',true);return;}
+ const candidate=admin&&nearby.length===1?nearby[0]:null;
+ const targetUid=candidate?.uid||identifier;
+ const action=candidate?'更新既有正式紀錄':'新增正式豬場';
+ if(!confirm(`確定${admin?action:'提交管理員審查'}「${name}」？${candidate?`\n將更新現有紀錄「${candidate.name}」（不是增加新筆數）。`:''}\n位置：${county}${town} ${address}\n座標：${lat}, ${lng}`))return;
+ newBusy=true;renderUser();status('正在向 Firestore 寫入並確認，請不要重複點擊…');
  try{
-  const id='manual-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);
-  const data={uid:id,name,county,town,address,lat,lng,version:1,approvedSuggestionId:null,updatedAt:F.serverTimestamp(),auditDecision:auditContext?.decision||'pig',auditParcelKey:clean(auditContext?.parcelKey,160)};
   let result;
-  if(admin){await F.setDoc(F.doc(db,'farms',id),data);result={uid:id,status:'approved'};}
-  else {await F.addDoc(F.collection(db,'farmSubmissions'),{proposedName:name,proposedCounty:county,proposedTown:town,proposedAddress:address,proposedLat:lat,proposedLng:lng,decision:auditContext?.decision||'pig',parcelKey:clean(auditContext?.parcelKey,160),note:clean(auditContext?.note,500),submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null});result={uid:'',status:'pending'};}
+  if(admin){
+   const ref=F.doc(db,'farms',targetUid);
+   // Transactions also recheck the server state; stale snapshots cannot create
+   // the same deterministic document twice, even if Save is clicked again.
+   await F.runTransaction(db,async tx=>{
+    const snap=await tx.get(ref);
+    const prev=snap.exists()?snap.data():null;
+    if(prev&&!candidate){
+      const matches=(parcelKey&&prev.auditParcelKey===parcelKey)||sameFarmPlace(prev,lat,lng);
+      if(!matches)throw Error('此位置識別碼已被其他紀錄使用，請先檢查，不會覆寫。');
+    }
+    const payload={uid:targetUid,name,county,town,address,lat,lng,
+      version:prev?Number(prev.version||1)+1:1,
+      approvedSuggestionId:prev?.approvedSuggestionId??null,
+      updatedAt:F.serverTimestamp(),auditDecision:decision,
+      auditParcelKey:parcelKey||clean(prev?.auditParcelKey,160)};
+    if(prev)tx.update(ref,payload);else tx.set(ref,payload);
+   });
+   // Update the visible list immediately after the acknowledged commit, not
+   // just an unrelated locally generated placeholder entry.
+   const cloud={uid:targetUid,name,county,town,address,lat,lng,auditDecision:decision,auditParcelKey:parcelKey};
+   liveFarms.set(targetUid,cloud);hook?.applyApproved([cloud]);
+   result={uid:targetUid,status:'approved',name,county,town,address,lat,lng,decision,parcelKey};
+  } else {
+   const submissionRef=F.doc(db,'farmSubmissions',parcelKey?`parcel-${stableKey(user.uid+':'+parcelKey)}`:`point-${stableKey(user.uid+':'+identifier)}`);
+   await F.runTransaction(db,async tx=>{
+    const snap=await tx.get(submissionRef);
+    if(snap.exists())throw Error('此位置已有送審紀錄（狀態：'+(snap.data()?.status||'未知')+'），請從共同編輯查看，不會重複送審。');
+    const data={proposedName:name,proposedCounty:county,proposedTown:town,proposedAddress:address,
+      proposedLat:lat,proposedLng:lng,decision,parcelKey,note:clean(auditContext?.note,500),
+      submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null};
+    tx.set(submissionRef,data);
+   });
+   result={uid:'',status:'pending'};
+  }
   $('cloudNewForm').hidden=true;newPoint=null;
-  if(auditContext){const ctx=auditContext;auditContext=null;if(admin)await ctx.onSaved?.(result);}
-  status(admin?`已正式新增「${name}」至 Firestore（ID：${id}）。`:`「${name}」已送交管理員審查；核准後才會加入正式豬場。`);
- }catch(e){status('新增失敗：'+err(e)+'。請先檢查 Firebase /firestore.rules 是否已部署最新版；資料未確認寫入。',true);}
- finally{newBusy=false;$('cloudNewSubmit').disabled=false;renderUser();}
+  let localAuditOkay=true;
+  if(auditContext){const ctx=auditContext;auditContext=null;if(admin&&ctx.onSaved)localAuditOkay=(await ctx.onSaved(result))!==false;}
+  const message=!localAuditOkay?`豬場「${name}」已寫入雲端，但本機地塊查核尚未儲存成功。請先備份本機資料並檢查。`:admin?`已${candidate?'更新':'建立'}正式豬場「${name}」（ID：${targetUid}）。`:`「${name}」已送交管理員審查；未加入正式豬場筆數。`;
+  status(message,!localAuditOkay);
+  if(localAuditOkay){$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');hook?.notifyApproved?.(message);if(admin)hook?.focusApproved?.(targetUid);}
+ }catch(e){status('儲存未完成：'+err(e)+'。表單仍保留，請檢查後重試；不會自行再新增。',true);}
+ finally{newBusy=false;renderUser();}
 }
 function publicRows(){return [...liveFarms.values()];}
 function syncIndicator(){if(!db)return;const count=liveFarms.size;
@@ -203,7 +253,7 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudEditForm')?.addEventListener('submit',submit);
  $('cloudNewOpen')?.addEventListener('click',()=>beginNew());
  $('cloudNewForm')?.addEventListener('submit',createFarm);
- $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;newPoint=null;auditContext=null;});
+ $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');newPoint=null;auditContext=null;});
  $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve,target.dataset.kind||'edit');});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cloudPanel').hidden)close();});
  if(!configured){status('尚未設定 Google Firebase：此版本目前仍是本機模式，沒有多人同步',true);renderUser();return;}

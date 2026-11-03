@@ -364,3 +364,13 @@
 
 /* V3.3.28 管理者新增豬場 */
 .cloud-create-entry{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px;background:#eaf6ee;border:1px solid #b7d6c1;border-radius:12px}.cloud-create-entry button{font-weight:700}.cloud-dialog #cloudNewForm{padding:12px;margin:10px 0;border:1px solid #a4c4ad;border-radius:12px;background:#fafefa}.cloud-dialog #cloudNewForm[hidden]{display:none}
+
+/* V3.3.37: show data-entry immediately instead of burying it below login/setup panels. */
+.cloud-cover.cloud-form-active .cloud-dialog > p.subtle,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-first-run,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-auth,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-create-entry,
+.cloud-cover.cloud-form-active .cloud-dialog > h3,
+.cloud-cover.cloud-form-active .cloud-dialog > #cloudProposals {display:none!important}
+.cloud-cover.cloud-form-active .cloud-dialog > form:not([hidden]) {margin-top:12px}
+.cloud-cover.cloud-form-active .cloud-head small {display:none}
