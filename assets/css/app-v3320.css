@@ -329,3 +329,7 @@
 #cloudSeed{border:1px solid #548c6e;background:#e5f4e9;color:#1a5637;font-weight:700}
 #cloudSeed[hidden]{display:none!important}
 @media(max-width:540px){.cloud-auth-input{flex-direction:column;align-items:stretch}.cloud-auth-input button{width:100%}}
+
+/* V3.3.23: reversible audit marks / responsive marker sizing */
+.audit-remove{color:#ab3333!important;border:1px solid #d9a5a5!important;background:#fff4f4!important}
+.audit-map-pin{box-sizing:border-box;line-height:1;transition:width .12s,height .12s}

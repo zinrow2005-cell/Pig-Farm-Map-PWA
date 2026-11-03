@@ -1,5 +1,5 @@
-/* 豬場地圖查核 V3.3.22：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
-const CACHE='pigfarm-shell-v3.3.22-help-guide-20261103';
+/* 豬場地圖查核 V3.3.23：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
+const CACHE='pigfarm-shell-v3.3.23-audit-delete-zoom-20261103';
 const ASSETS=[
  './index.html','./manifest.webmanifest','./favicon.ico',
  './assets/css/app-v3320.css','./assets/css/mobile-v3320.css','./assets/css/farm-info-v3321.css','./assets/css/help-v3322.css','./assets/js/mobile-v3320.js','./assets/js/f03-services.js',
