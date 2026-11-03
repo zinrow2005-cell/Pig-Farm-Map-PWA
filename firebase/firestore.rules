@@ -50,7 +50,7 @@ service cloud.firestore {
       // 地址／座標公開查詢，不代表查核／核定資料同步。
       allow read: if true;
       // 管理員首次匯入只准新建，不能用舊名冊覆蓋已存在的資料。
-      allow create: if admin() && validFarm(request.resource.data, farmId)
+      allow create: if admin() && !exists(/databases/$(database)/documents/deletedFarms/$(farmId)) && validFarm(request.resource.data, farmId)
         && request.resource.data.version == 1
         && request.resource.data.approvedSuggestionId == null
         ;
@@ -69,7 +69,26 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedAddress == request.resource.data.address
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedLat == request.resource.data.lat
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedLng == request.resource.data.lng));
-      allow delete: if false;
+      // 必須在同一交易內建立不可覆寫的刪除墓碑，避免已刪場址再被初始名冊補回。
+      allow delete: if admin()
+        && getAfter(/databases/$(database)/documents/deletedFarms/$(farmId)).data.farmUid == farmId
+        && getAfter(/databases/$(database)/documents/deletedFarms/$(farmId)).data.deletedBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/deletedFarms/$(farmId)).data.lastVersion == resource.data.version;
+    }
+    match /deletedFarms/{farmId} {
+      allow read: if true;
+      allow create: if admin()
+        && !exists(/databases/$(database)/documents/deletedFarms/$(farmId))
+        && request.resource.data.keys().hasAll(['farmUid','name','deletedBy','deletedAt','lastVersion'])
+        && request.resource.data.keys().hasOnly(['farmUid','name','deletedBy','deletedAt','lastVersion'])
+        && request.resource.data.farmUid == farmId
+        && request.resource.data.name is string && request.resource.data.name.size() <= 150
+        && request.resource.data.deletedBy == request.auth.uid
+        && request.resource.data.deletedAt == request.time
+        && request.resource.data.lastVersion is int
+        && exists(/databases/$(database)/documents/farms/$(farmId))
+        && !existsAfter(/databases/$(database)/documents/farms/$(farmId));
+      allow update, delete: if false;
     }
     match /farmSubmissions/{id} {
       allow get: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);

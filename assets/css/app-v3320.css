@@ -374,3 +374,15 @@
 .cloud-cover.cloud-form-active .cloud-dialog > #cloudProposals {display:none!important}
 .cloud-cover.cloud-form-active .cloud-dialog > form:not([hidden]) {margin-top:12px}
 .cloud-cover.cloud-form-active .cloud-head small {display:none}
+
+/* V3.3.38 */
+.cloud-danger{background:#fff4f3!important;color:#a82828!important;border:1px solid #d78a86!important;font-weight:700}.cloud-danger:hover{background:#ffe5e2!important}
+#cloudNewParcel{padding:8px 10px;border-radius:8px;background:#edf5ef;color:#27634e}
+#cloudNewDecision{width:100%;padding:10px;border:1px solid #c9dbd0;border-radius:8px;background:white}
+
+/* V3.3.39: local-only audit deletion, always accessible on phone and desktop */
+.audit-history-entry{display:flex;align-items:stretch;gap:6px;margin:5px 0;border:1px solid #dce9e1;border-radius:10px;background:#f7faf8;padding:4px}
+.audit-history-list .audit-history-entry .audit-history-open{flex:1;min-width:0;margin:0;background:transparent}
+.audit-history-list .audit-history-entry .audit-history-delete{width:auto;min-width:96px;flex:none;margin:0;padding:8px 10px;align-self:center;background:#fff4f4;color:#a52a2a;border:1px solid #ddbbbb;text-align:center;font-weight:600}
+.audit-history-delete:focus-visible,.audit-remove:focus-visible{outline:3px solid #f0a4a4;outline-offset:2px}
+@media(max-width:700px){.audit-history-entry{gap:4px}.audit-history-list .audit-history-entry .audit-history-delete{min-height:44px;min-width:86px;padding:5px;font-size:12px}#auditRemove:not([hidden]){min-height:42px}}
