@@ -1,4 +1,4 @@
-/* 豬場查核 V3.3.40｜地塊標記直填、管理員刪除與同步統計。 */
+/* 豬場查核 V3.3.42｜地塊標記直填、管理員刪除與同步統計。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
@@ -51,6 +51,27 @@ function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到�
  $('cloudNote').value='';$('cloudEditForm').hidden=false;renderUser();
  if(!user)status('請先使用 Google 登入，再提交這筆豬場資料',true);
 }
+function editAt(uid,lat,lng){
+ const rec=hook?.getRecord(uid);if(!rec){status('找不到此筆豬場，請重新搜尋。',true);return false;}
+ const coordsValid=Number.isFinite(Number(lat))&&Number.isFinite(Number(lng))&&lat>=21&&lat<=27&&lng>=118&&lng<=123;
+ if(!coordsValid){status('地圖選取的座標無效。',true);return false;}
+ // Reusing the existing farm ID is essential: never create a second record.
+ edit(uid);$('cloudNewForm').hidden=true;
+ $('cloudLat').value=Number(lat).toFixed(8);$('cloudLng').value=Number(lng).toFixed(8);
+ $('cloudFarm').textContent+=' · 已由地圖更新定位，請檢查並儲存';
+ status(admin?'請確認這筆既有豬場位置，管理員儲存後直接更新正式資料。':'請確認這筆既有豬場位置，送審核准後才更新正式資料。');
+ return true;
+}
+function renderLinkMatches(){
+ const box=$('cloudLinkResults'),search=$('cloudLinkSearch');if(!box||!search)return;
+ const term=search.value.trim().toLocaleLowerCase();if(!term){box.innerHTML='<small>輸入名稱、地址或舊版編號，搜尋現有豬場紀錄</small>';return;}
+ const rows=hook?.findRecords?.(term)||[];
+ box.innerHTML=rows.slice(0,20).map(r=>'<button type="button" data-link-existing="'+esc(r.uid)+'"><strong>'+esc(r.name||'未命名豬場')+'</strong><small>'+esc([r.county,r.town,r.address].filter(Boolean).join(' · '))+' · '+(r.located?'已有座標（將更新）':'待定位')+'</small></button>').join('')||'<small>沒有符合的豬場，可改為新增。</small>';
+}
+function linkExistingFromPoint(uid){const lat=Number($('cloudNewLat').value),lng=Number($('cloudNewLng').value);if(!uid||!Number.isFinite(lat)||!Number.isFinite(lng))return;
+ // Keep the original parcel context for post-approval audit linking.
+ editAt(uid,lat,lng);
+}
 function beginNew(lat=null,lng=null){
  open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
  const hasCoords=lat!==null&&lng!==null;
@@ -62,7 +83,7 @@ function beginNew(lat=null,lng=null){
  $('cloudNewLng').value=hasCoords?Number(lng).toFixed(8):'';
 
  status(hasCoords?'已從地圖取得座標，請填入豬場名稱與地址後確認。':'請填入豬場資料與 WGS84 經緯度。');
- $('cloudNewName').focus();return true;
+ $('cloudLinkSearch').value='';renderLinkMatches();$('cloudNewName').focus();return true;
 }
 // The identity of a parcel/point must remain stable across clicks and reloads.
 // This is NOT a server-side uniqueness guarantee against arbitrary external clients.
@@ -268,6 +289,7 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudRefresh')?.addEventListener('click',refresh);$('cloudSeed')?.addEventListener('click',seed);
  $('cloudEditForm')?.addEventListener('submit',submit);
  $('cloudNewOpen')?.addEventListener('click',()=>beginNew());
+ $('cloudLinkSearch')?.addEventListener('input',renderLinkMatches);$('cloudLinkResults')?.addEventListener('click',e=>{const b=e.target.closest('[data-link-existing]');if(b)linkExistingFromPoint(b.dataset.linkExisting);});$('cloudPickExisting')?.addEventListener('click',()=>{if(!activeFarm)return;const uid=activeFarm;close();hook?.pickExistingOnMap?.(uid);});
  $('cloudNewForm')?.addEventListener('submit',createFarm);$('cloudDelete')?.addEventListener('click',()=>deleteActiveFarm());
  $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');newPoint=null;auditContext=null;});
  $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve,target.dataset.kind||'edit');});
@@ -283,7 +305,7 @@ async function start(options){if(started)return;started=true;hook=options;
  subscribeDeleted();subscribeFarms();A.onAuthStateChanged(auth,u=>{onUserChanged(u).catch(e=>status(err(e),true));},e=>status('Firebase Authentication 發生問題：'+err(e),true));
  }catch(e){status('Firebase 啟動失敗：'+err(e)+'。沒有啟用共用同步。',true);}
 }
-root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,beginNew,beginAudit,pull:refresh,
+root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,beginNew,beginAudit,editAt,pull:refresh,
  deletionInfo(uid){return {isCloud:liveFarms.has(uid),canDelete:!!(user&&admin&&adminReady&&db&&liveFarms.has(uid))};},
  deleteFarm(uid){return deleteActiveFarm(uid);}};
 })(window);

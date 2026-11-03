@@ -755,7 +755,7 @@ function markFarmParcelAt(lat,lng){
  const result=window.PigCommunity.beginAudit(lat,lng,'pig','', '',res=>saveAudit(res.decision||'pig',res),STATE.inspectParcel.key);
  if(result){$('auditPanel').hidden=true;clearInspectPreview();}
 }
-function clickedMap(e){if(STATE.tool==='point'){mode('browse');markFarmParcelAt(e.latlng.lat,e.latlng.lng);}else if(STATE.tool==='locate'){let id=STATE.locateId;STATE.locateId=null;mode('browse');createPointAt(e.latlng.lat,e.latlng.lng,id);}else if(STATE.tool==='poly'){STATE.draw.push([e.latlng.lat,e.latlng.lng]);refreshDraw();}else if(STATE.tool==='inspect'){inspectAt(e.latlng.lat,e.latlng.lng);} }
+function clickedMap(e){if(STATE.tool==='point'){mode('browse');markFarmParcelAt(e.latlng.lat,e.latlng.lng);}else if(STATE.tool==='locate'){let id=STATE.locateId;STATE.locateId=null;mode('browse');if(window.PigCommunity?.enabled){window.PigCommunity.editAt(id,e.latlng.lat,e.latlng.lng);}else createPointAt(e.latlng.lat,e.latlng.lng,id);}else if(STATE.tool==='poly'){STATE.draw.push([e.latlng.lat,e.latlng.lng]);refreshDraw();}else if(STATE.tool==='inspect'){inspectAt(e.latlng.lat,e.latlng.lng);} }
 function changeView(view){STATE.view=view;$('maps').className='maps '+view;document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===view));setTimeout(()=>{if(STATE.mapReady){for(const m of STATE.maps)m.invalidateSize();const a=STATE.maps[0];STATE.maps[1].setView(a.getCenter(),a.getZoom(),{animate:false});refreshF03();}},120);persist();}
 /* V3.1.1 底圖監控：官方底圖逾時或圖磚失敗，自動換公開備援；每張地圖獨立處理。 */
 const BASEMAPS={
@@ -798,6 +798,7 @@ function restartBaseMaps(backup=false){
 }
 
 /* V3.3.35: use DOM marker hit targets on touch layouts. Leaflet Canvas vector hit tests are unreliable on narrow mobile browsers. */
+let showFarmNames=false;try{showFarmNames=localStorage.getItem('pig-show-farm-names')==='1';}catch(e){}
 function renderMarkers(){
  if(!STATE.mapReady)return;
  for(const group of STATE.markerGroups)group.clearLayers();
@@ -815,7 +816,7 @@ function renderMarkers(){
      pane:'farmTouchPane',keyboard:true,riseOnHover:false,
      icon:L.divIcon({className:'farm-touch-icon',html:'<span class="farm-touch-dot" style="--farm-marker-color:'+col+'" aria-hidden="true"></span>',iconSize:[38,38],iconAnchor:[19,19]})
     });
-    marker.bindTooltip(html(r.name)+' · '+(r.review==='approved'?'全部核定':'待核'),{direction:'top'});
+    marker.bindTooltip(html(r.name||'未命名豬場'),{direction:'top',permanent:showFarmNames&&STATE.maps[0]?.getZoom()>=15,offset:[0,-19],className:'farm-name-tooltip',opacity:0.95});
     marker.on('click',e=>{if(e?.originalEvent)L.DomEvent.stopPropagation(e.originalEvent);if(STATE.tool==='point'&&window.PigCommunity?.enabled){mode('browse');window.PigCommunity.edit(r.uid);return;}focusFarmRecord(r.uid,{move:false});});
     marker.on('add',()=>{const el=marker.getElement();if(el){el.setAttribute('title',r.name||'豬場標記');el.setAttribute('aria-label','選取豬場：'+(r.name||'未命名'));}});
     group.addLayer(marker);
@@ -823,7 +824,7 @@ function renderMarkers(){
     let shape;
     if(r.geometry?.type==='Polygon')shape=L.polygon(r.geometry.coordinates[0].map(v=>[v[1],v[0]]),{color:col,weight:3,fillOpacity:.18,fillColor:col,bubblingMouseEvents:false});
     else shape=L.circleMarker(p,{radius:r.review==='approved'?8:6,weight:2,color:'#fff',fillColor:col,fillOpacity:.96,bubblingMouseEvents:false});
-    shape.bindTooltip(html(r.name)+' · '+(r.review==='approved'?'全部核定':'待核'),{direction:'top'});
+    shape.bindTooltip(html(r.name||'未命名豬場'),{direction:'top',permanent:showFarmNames&&STATE.maps[0]?.getZoom()>=15,offset:[0,-10],className:'farm-name-tooltip',opacity:0.95});
     shape.on('click',()=>{if(STATE.tool==='point'&&window.PigCommunity?.enabled){mode('browse');window.PigCommunity.edit(r.uid);return;}focusFarmRecord(r.uid,{move:false});});group.addLayer(shape);
    }
   }
@@ -1022,7 +1023,7 @@ function refreshF03(){
 function initMap(){if(typeof window.L==='undefined'){$('gisInfo').textContent='無法取得 Leaflet 地圖套件；清單與匯出仍可使用';$('gisInfo').classList.add('error');$('saveState').textContent='地圖套件載入失敗';return;}
  try{const left=L.map('surveyMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom),right=L.map('aerialMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom);STATE.maps=[left,right];for(const map of [left,right]){map.createPane('f03Overlay');map.getPane('f03Overlay').style.zIndex=350;map.getPane('f03Overlay').style.pointerEvents='none';map.createPane('auditAreas');map.getPane('auditAreas').style.zIndex=365;map.createPane('auditPins');map.getPane('auditPins').style.zIndex=575;map.createPane('inspectPreview');map.getPane('inspectPreview').style.zIndex=570;map.getPane('inspectPreview').style.pointerEvents='none';map.createPane('selectedFarmPane');map.getPane('selectedFarmPane').style.zIndex=690;map.getPane('selectedFarmPane').style.pointerEvents='none';map.createPane('farmTouchPane');map.getPane('farmTouchPane').style.zIndex=620;map.createPane('deviceLocationPane');map.getPane('deviceLocationPane').style.zIndex=640;map.getPane('deviceLocationPane').style.pointerEvents='none';}STATE.bases=[null,null];startBase('emap');startBase('photo');STATE.auditAreaGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.inspectPreviewGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.auditGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.markerGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.selectedFarmGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.queueHighlights=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneAreaLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneCandidateLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.mapReady=true;
  window.PigGeolocate?.onMapsReady?.();
- for(const map of STATE.maps){map.on('zoomend',renderAuditPins);} for(const map of STATE.maps)map.on('click',clickedMap);left.on('moveend',()=>onMapMove(left,right));right.on('moveend',()=>onMapMove(right,left));left.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);right.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);
+ for(const map of STATE.maps){map.on('zoomend',renderAuditPins);map.on('zoomend',renderMarkers);} for(const map of STATE.maps)map.on('click',clickedMap);left.on('moveend',()=>onMapMove(left,right));right.on('moveend',()=>onMapMove(right,left));left.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);right.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);
  if(window.matchMedia){const farmLayoutMedia=window.matchMedia('(max-width:1024px)');if(farmLayoutMedia.addEventListener)farmLayoutMedia.addEventListener('change',()=>renderMarkers());else if(farmLayoutMedia.addListener)farmLayoutMedia.addListener(()=>renderMarkers());}
  STATE.showF03=$('showF03').checked;renderMarkers();renderSelectedFarmHighlight();renderAuditPins();renderAuditAreas();renderQueueHighlight();renderZones();setTimeout(()=>{for(const m of STATE.maps)m.invalidateSize();scheduleF03();},350);
  }catch(e){$('gisInfo').textContent='地圖初始化失敗：'+e.message;$('gisInfo').classList.add('error');console.error(e);}}
@@ -1660,6 +1661,7 @@ function bind(){
  }
  reloadOfflineF03(STATE.year);clearInspectPreview();$('auditPanel').hidden=true;++STATE.inspectSeq;STATE.queueSeq++;STATE.queueRows=[];STATE.queueBounds=null;STATE.queueSelectedKey=null;STATE.queueScanActive=false;$('queueScan').disabled=false;$('queueStatus').textContent='年度已更改，請重新掃描目前畫面。';STATE.queueZoneId=null;renderQueue();renderZones();scheduleF03();renderAuditPins();persist();});$('opacity').addEventListener('input',e=>{STATE.opacity=+e.target.value/100;$('opacityLabel').textContent=e.target.value+'%';if(Array.isArray(STATE.f03))for(const layer of STATE.f03)layer.setOpacity(STATE.opacity);persist();});
  $('closeEditor').addEventListener('click',closeEditor);$('editorBackdrop').addEventListener('click',closeEditor);$('editorForm').addEventListener('submit',saveEditor);$('removeLocation').addEventListener('click',removeLocation);$('removeRecord').addEventListener('click',deleteRecord);
+ $('showFarmNames').checked=showFarmNames;$('showFarmNames').addEventListener('change',e=>{showFarmNames=e.target.checked;try{localStorage.setItem('pig-show-farm-names',showFarmNames?'1':'0');}catch(err){}renderMarkers();});
  $('pickLocation').addEventListener('click',()=>{STATE.locateId=STATE.selected;closeEditor();mode('locate');notice('請在地圖點選正確的豬場位置。');});
  for(let id of ['backupTop'])$(id).addEventListener('click',exportJSON);$('exportCsv').addEventListener('click',exportCSV);$('exportGeo').addEventListener('click',exportGeo);$('importButton').addEventListener('click',()=>$('importFile').click());$('importFile').addEventListener('change',e=>{readImport(e.target.files[0]);e.target.value='';});
  $('diagOpen').addEventListener('click',openMapDiagnosis);$('diagClose').addEventListener('click',closeMapDiagnosis);$('diagRun').addEventListener('click',runMapDiagnosis);$('acceptRun').addEventListener('click',runFieldAcceptance);$('diagCopy').addEventListener('click',diagCopy);
@@ -2087,7 +2089,7 @@ async function init(){const f03Diag=$('f03Diag');if(f03Diag)f03Diag.addEventList
   $('f03Source').value=f03SourceMode;updateF03YearInfo();await reloadOfflineF03(STATE.year);
   if(bundledError)offlineStatus('內建圖資校驗失敗，已退回線上圖層：'+bundledError,true);
   else if(f03SourceMode==='builtin')offlineStatus(offlineSummary());
-  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),applyApproved:applyCloudFarms,removeDeleted:removeDeletedCloudFarms,focusApproved:uid=>focusFarmRecord(uid,{move:true}),notifyApproved:message=>notice(message),getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
+  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),findRecords:term=>STATE.records.filter(r=>[r.name,r.county,r.town,r.address,r.legacyId,r.uid].join(' ').toLocaleLowerCase().includes(term)).map(r=>({uid:r.uid,name:r.name,county:r.county,town:r.town,address:r.address,located:!!C.center(r)})),pickExistingOnMap:uid=>{STATE.locateId=uid;closeFarmDetails();closeEditor();mode('locate');notice('請點選地圖上的正確位置，選完會回到原本豬場資料編輯。');},applyApproved:applyCloudFarms,removeDeleted:removeDeletedCloudFarms,focusApproved:uid=>focusFarmRecord(uid,{move:true}),notifyApproved:message=>notice(message),getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){
  if(STATE.viewSaveTimer){clearTimeout(STATE.viewSaveTimer);STATE.viewSaveTimer=null;persist();}
  if(dirtyRev>committedRev)flushSave();

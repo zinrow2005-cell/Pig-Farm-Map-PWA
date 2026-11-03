@@ -11,3 +11,28 @@
 
 /* Geolocation is visual only: never block farm, F03 parcel, or map clicks. */
 .leaflet-deviceLocationPane,.leaflet-deviceLocationPane canvas,.leaflet-deviceLocationPane svg,.leaflet-deviceLocationPane path{pointer-events:none!important}
+
+/* V3.3.42: location buttons occupy tool bar, never cover map/caption. */
+.geo-location-controls{position:relative;right:auto;bottom:auto;z-index:850;flex:none;margin-left:auto;display:flex;gap:5px}
+.geo-location-panel{bottom:auto;top:52px}
+.geo-locate-btn,.geo-location-settings>summary{min-height:35px;box-shadow:none}
+.geo-location-settings>summary{width:36px;font-size:19px}
+.geo-locate-btn{padding:6px 10px}
+.farm-name-toggle{white-space:nowrap;display:flex;align-items:center;gap:4px}
+.farm-name-tooltip{background:#fffdfa!important;color:#153d2e!important;border:1px solid #9bbfae!important;border-radius:5px!important;box-shadow:0 2px 6px #0003!important;font-size:12px!important;font-weight:650!important;pointer-events:none!important;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.farm-name-tooltip:before{display:none!important}
+.cloud-link-existing{margin:9px 0;padding:10px;background:#f0f8f4;border:1px solid #c5dccc;border-radius:10px}
+.cloud-link-existing label{display:block;font-weight:700;font-size:13px;margin-bottom:4px}
+.cloud-link-existing input{box-sizing:border-box;width:100%;min-height:39px;padding:8px;border-radius:8px;border:1px solid #b0c7bc;background:#fff}
+.cloud-link-existing small{font-size:11px;color:#52685f}
+.cloud-link-results{max-height:190px;overflow:auto;margin-top:7px;display:grid;gap:4px}
+.cloud-link-results button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;background:#fff;border:1px solid #c5d8ce;border-radius:7px;padding:7px 9px;cursor:pointer}
+.cloud-link-results button:hover,.cloud-link-results button:focus-visible{border-color:#178266;background:#e6f5ed}
+@media(max-width:1024px){.geo-location-controls{position:relative;right:auto;bottom:auto}.geo-locate-btn{min-height:35px}.geo-location-settings>summary{min-height:35px;width:36px}.layer-controls{flex-wrap:wrap}.geo-location-controls{margin-left:auto}.farm-name-toggle{font-size:11px}}
+
+/* A separate compact quick-action strip avoids all mobile fixed-height layer-bar conflicts. */
+.map-quick-controls{display:flex;align-items:center;gap:12px;flex:none;min-height:41px;padding:3px 12px;background:#f7faf8;border-bottom:1px solid #dce7df;position:relative;z-index:1000}
+.map-quick-controls .geo-location-controls{margin-left:auto}
+.map-quick-controls .farm-name-toggle{display:flex!important;align-items:center;gap:5px;white-space:nowrap;font-size:12px;color:#255945;font-weight:600}
+.map-quick-controls .farm-name-toggle input{accent-color:#23775b;width:17px;height:17px}
+@media(max-width:1024px){.map-quick-controls{min-height:40px;padding:3px 9px;gap:5px}.map-quick-controls .farm-name-toggle{font-size:11px}}
