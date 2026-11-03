@@ -560,15 +560,23 @@ function showFarmDetails(uid){
  put('farmInfoCategory',({pig:'豬場（人工判定）',maybe:'疑似豬場',other:'其他／非豬場',unchecked:'尚未判定'})[r.category]||'尚未判定');
  put('farmInfoSource',r.source||'未註明');
  put('farmInfoNote',r.note||'未註明');
- const del=$('farmInfoDelete');const local=isDeletableLocalFarm(r);
- const cloud=window.PigCommunity?.deletionInfo?.(uid)||{isCloud:false,canDelete:false};
- del.hidden=!(local||cloud.canDelete);
- del.disabled=false;
- del.textContent=local?'✕ 刪除本機豬場':'✕ 刪除正式豬場';
- del.title=local?'只刪除此裝置的手動新增資料，不影響雲端':'僅管理員可刪除 Firestore 正式豬場；刪除後同步更新所有使用者';
+ refreshFarmInfoDelete(r);
  $('farmInfoBackdrop').hidden=false;$('farmInfoDialog').hidden=false;
  $('farmInfoClose').focus();
  return true;
+}
+// V3.3.41: 地圖資訊視窗的刪除按鈕放在標題旁，無需先開清單／共同編輯。
+// Firestore 權限可能在開啟視窗後才驗證完成；按下按鈕時再次檢查權限。
+function refreshFarmInfoDelete(r){
+ const del=$('farmInfoDelete');if(!del||!r)return;
+ const cloud=window.PigCommunity?.deletionInfo?.(r.uid)||{isCloud:false,canDelete:false};
+ const local=isDeletableLocalFarm(r);
+ const possibleCloud=cloud.isCloud||!!r.cloudVersion||r.source==='管理員雲端新增';
+ del.hidden=!(local||possibleCloud);
+ del.disabled=false;
+ del.textContent=local?'✕ 刪除本機豬場':'✕ 刪除正式豬場';
+ del.title=local?'只刪除此裝置的本機紀錄':cloud.canDelete?'管理員刪除正式豬場（需要確認名稱）':'需以管理員登入且完成雲端同步後才能刪除';
+ del.setAttribute('aria-label',del.textContent+'：'+(r.name||'未命名豬場'));
 }
 function closeFarmDetails(){
  if($('farmInfoDialog').hidden)return;
@@ -584,7 +592,7 @@ async function deleteFarmFromDetails(){
  const button=$('farmInfoDelete');if(button.disabled)return;
  const cloud=window.PigCommunity?.deletionInfo?.(uid)||{};
  if(!isDeletableLocalFarm(r)){
-  if(!cloud.canDelete){notice('這不是可刪除的本機資料；正式豬場僅管理員可刪。');return;}
+  if(!cloud.canDelete){notice('此為雲端正式紀錄，需管理員完成登入及雲端同步才能刪除。請確認右上角「管理員 ✓」，稍後再試。');refreshFarmInfoDelete(r);return;}
   button.disabled=true;
   try{const ok=await window.PigCommunity.deleteFarm(uid);if(!ok){button.disabled=false;return;}closeFarmDetails();}
   catch(e){button.disabled=false;notice('雲端刪除失敗：'+String(e.message||e));}

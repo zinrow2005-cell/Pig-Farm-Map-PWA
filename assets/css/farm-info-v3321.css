@@ -32,3 +32,9 @@
 .farm-info-delete[hidden]{display:none!important}
 .farm-info-delete:disabled{opacity:.55;cursor:wait}
 @media(max-width:600px){.farm-info-footer{flex-wrap:wrap;justify-content:stretch}.farm-info-footer button{min-height:43px;flex:1 1 auto}.farm-info-footer .farm-info-delete{flex-basis:100%}}
+
+/* V3.3.41: 地圖資訊標題右上角直接顯示刪除入口（不靠清單編輯） */
+.farm-info-header-actions{display:flex;align-items:center;gap:8px;flex:none}
+.farm-info-header-actions .farm-info-delete{min-height:38px;white-space:nowrap;padding:7px 10px;font-size:12px}
+.farm-info-header-actions #farmInfoClose{min-width:38px;min-height:38px}
+@media(max-width:600px){.farm-info-header{gap:6px}.farm-info-header-actions{gap:5px}.farm-info-header-actions .farm-info-delete{font-size:11px;padding:7px 8px}.farm-info-header h2{font-size:17px}}
