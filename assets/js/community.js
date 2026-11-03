@@ -1,4 +1,4 @@
-/* 豬場查核 V3.3.39｜地塊標記直填、管理員刪除與同步統計。 */
+/* 豬場查核 V3.3.40｜地塊標記直填、管理員刪除與同步統計。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
@@ -142,16 +142,17 @@ async function createFarm(event){
 }
 function publicRows(){return [...liveFarms.values()].filter(f=>!deletedFarmIds.has(f.uid));}
 function subscribeDeleted(){if(unsubDeleted){unsubDeleted();unsubDeleted=null;}if(!db)return;unsubDeleted=F.onSnapshot(F.collection(db,'deletedFarms'),snapshot=>{deletedFarmIds=new Set(snapshot.docs.map(x=>x.id));hook?.removeDeleted?.([...deletedFarmIds]);hook?.applyApproved?.(publicRows());},e=>status('刪除紀錄同步失敗：'+err(e),true));}
-async function deleteActiveFarm(){
- if(!admin||!adminReady||!db||!user||deleteBusy||editBusy)return status('只有完成身分驗證的管理員才能刪除正式豬場。',true);
- const uid=activeFarm,record=liveFarms.get(uid);if(!record)return status('正式紀錄不存在或已刪除，請重新同步。',true);
- if(farmsFromCache)return status('目前仍是離線快取，無法安全刪除；請先同步雲端。',true);
- if(!confirm(`確定要刪除正式豬場「${record.name}」？\n這會同步移除地圖、清單和已匯入總數，不會刪除官方 F03 地塊。`))return;
- const typed=prompt(`最後確認：請完整輸入「${record.name}」才能刪除。`);if(typed!==record.name)return status('名稱不相符，已取消刪除。',true);
+async function deleteActiveFarm(uidOverride=null){
+ if(uidOverride!==null)activeFarm=uidOverride;
+ if(!admin||!adminReady||!db||!user||deleteBusy||editBusy){status('只有完成身分驗證的管理員才能刪除正式豬場。',true);return false;}
+ const uid=activeFarm,record=liveFarms.get(uid);if(!record){status('正式紀錄不存在或已刪除，請重新同步。',true);return false;}
+ if(farmsFromCache){status('目前仍是離線快取，無法安全刪除；請先同步雲端。',true);return false;}
+ if(!confirm(`確定要刪除正式豬場「${record.name}」？\n這會同步移除地圖、清單和已匯入總數，不會刪除官方 F03 地塊。`))return false;
+ const typed=prompt(`最後確認：請完整輸入「${record.name}」才能刪除。`);if(typed!==record.name){status('名稱不相符，已取消刪除。',true);return false;}
  deleteBusy=true;renderUser();status('正在刪除正式豬場並建立防重建紀錄…');
  try{await F.runTransaction(db,async tx=>{const farmRef=F.doc(db,'farms',uid),delRef=F.doc(db,'deletedFarms',uid);const farm=await tx.get(farmRef),tomb=await tx.get(delRef);if(!farm.exists())throw Error('雲端正式豬場已不存在，未執行刪除');if(tomb.exists())throw Error('此豬場已有刪除紀錄');if(Number(farm.data().version)!==Number(record.version))throw Error('資料已被其他裝置更新，請同步後再刪除');tx.set(delRef,{farmUid:uid,name:clean(farm.data().name,150),deletedBy:user.uid,deletedAt:F.serverTimestamp(),lastVersion:farm.data().version});tx.delete(farmRef);});
- deletedFarmIds.add(uid);liveFarms.delete(uid);hook?.removeDeleted?.([uid]);hook?.notifyApproved?.(`已刪除「${record.name}」；地圖、清單與統計已更新。`);activeFarm=null;$('cloudEditForm').hidden=true;$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');syncIndicator();
- }catch(e){status('刪除未完成：'+err(e)+'。資料維持原狀。',true);}finally{deleteBusy=false;renderUser();}
+ deletedFarmIds.add(uid);liveFarms.delete(uid);hook?.removeDeleted?.([uid]);hook?.notifyApproved?.(`已刪除「${record.name}」；地圖、清單與統計已更新。`);activeFarm=null;$('cloudEditForm').hidden=true;$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');syncIndicator();return true;
+ }catch(e){status('刪除未完成：'+err(e)+'。資料維持原狀。',true);return false;}finally{deleteBusy=false;renderUser();}
 }
 function syncIndicator(){if(!db)return;const count=liveFarms.size;
  if(!count&&farmsFromCache){status('Firebase 已載入，正在向伺服器確認豬場資料…');return;}
@@ -267,7 +268,7 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudRefresh')?.addEventListener('click',refresh);$('cloudSeed')?.addEventListener('click',seed);
  $('cloudEditForm')?.addEventListener('submit',submit);
  $('cloudNewOpen')?.addEventListener('click',()=>beginNew());
- $('cloudNewForm')?.addEventListener('submit',createFarm);$('cloudDelete')?.addEventListener('click',deleteActiveFarm);
+ $('cloudNewForm')?.addEventListener('submit',createFarm);$('cloudDelete')?.addEventListener('click',()=>deleteActiveFarm());
  $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');newPoint=null;auditContext=null;});
  $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve,target.dataset.kind||'edit');});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cloudPanel').hidden)close();});
@@ -282,5 +283,7 @@ async function start(options){if(started)return;started=true;hook=options;
  subscribeDeleted();subscribeFarms();A.onAuthStateChanged(auth,u=>{onUserChanged(u).catch(e=>status(err(e),true));},e=>status('Firebase Authentication 發生問題：'+err(e),true));
  }catch(e){status('Firebase 啟動失敗：'+err(e)+'。沒有啟用共用同步。',true);}
 }
-root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,beginNew,beginAudit,pull:refresh};
+root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,beginNew,beginAudit,pull:refresh,
+ deletionInfo(uid){return {isCloud:liveFarms.has(uid),canDelete:!!(user&&admin&&adminReady&&db&&liveFarms.has(uid))};},
+ deleteFarm(uid){return deleteActiveFarm(uid);}};
 })(window);

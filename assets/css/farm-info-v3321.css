@@ -26,3 +26,9 @@
 .farm-info-footer{display:flex;gap:9px;justify-content:end;padding:12px 18px;border-top:1px solid #dce9e2;background:#fff;position:sticky;bottom:0}
 .farm-info-footer button{font-size:13px}
 @media(max-width:600px){.farm-info-dialog{top:auto;left:0;bottom:0;transform:none;width:100%;max-height:87dvh;border-radius:18px 18px 0 0}.farm-info-header{padding:13px 15px}.farm-info-body{padding:13px 15px}.farm-info-footer{padding:10px 15px calc(10px + env(safe-area-inset-bottom))}.farm-selection-card .selected-farm-name{min-width:0}}
+
+/* V3.3.40: visible, source-aware delete action in farm details */
+.farm-info-delete{min-height:40px;padding:9px 12px;white-space:nowrap;background:#fff1f0!important;border:1px solid #dca4a0!important;color:#982b25!important;font-weight:700;cursor:pointer}
+.farm-info-delete[hidden]{display:none!important}
+.farm-info-delete:disabled{opacity:.55;cursor:wait}
+@media(max-width:600px){.farm-info-footer{flex-wrap:wrap;justify-content:stretch}.farm-info-footer button{min-height:43px;flex:1 1 auto}.farm-info-footer .farm-info-delete{flex-basis:100%}}

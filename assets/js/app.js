@@ -546,10 +546,10 @@ function focusFarmRecord(uid,{move=true}={}){
  return true;
 }
 /* V3.3.21：將地圖選取與豬場資訊分開。只有資訊按鈕或名稱被點擊，才開啟唯讀詳情。 */
-let farmInfoLastFocus=null;
+let farmInfoLastFocus=null,farmInfoUid=null;
 function showFarmDetails(uid){
  const r=STATE.records.find(x=>x.uid===uid);if(!r)return false;
- const p=C.center(r);farmInfoLastFocus=document.activeElement;
+ farmInfoUid=uid;const p=C.center(r);farmInfoLastFocus=document.activeElement;
  const put=(id,value)=>{const el=$(id);if(el)el.textContent=String(value??'—')||'—';};
  put('farmInfoName',r.name||'未命名地點');
  put('farmInfoId',r.legacyId!=null?'原始編號 #'+r.legacyId:'紀錄 ID '+r.uid);
@@ -560,6 +560,12 @@ function showFarmDetails(uid){
  put('farmInfoCategory',({pig:'豬場（人工判定）',maybe:'疑似豬場',other:'其他／非豬場',unchecked:'尚未判定'})[r.category]||'尚未判定');
  put('farmInfoSource',r.source||'未註明');
  put('farmInfoNote',r.note||'未註明');
+ const del=$('farmInfoDelete');const local=isDeletableLocalFarm(r);
+ const cloud=window.PigCommunity?.deletionInfo?.(uid)||{isCloud:false,canDelete:false};
+ del.hidden=!(local||cloud.canDelete);
+ del.disabled=false;
+ del.textContent=local?'✕ 刪除本機豬場':'✕ 刪除正式豬場';
+ del.title=local?'只刪除此裝置的手動新增資料，不影響雲端':'僅管理員可刪除 Firestore 正式豬場；刪除後同步更新所有使用者';
  $('farmInfoBackdrop').hidden=false;$('farmInfoDialog').hidden=false;
  $('farmInfoClose').focus();
  return true;
@@ -568,10 +574,37 @@ function closeFarmDetails(){
  if($('farmInfoDialog').hidden)return;
  $('farmInfoDialog').hidden=true;$('farmInfoBackdrop').hidden=true;
  if(farmInfoLastFocus?.isConnected)farmInfoLastFocus.focus({preventScroll:true});
- farmInfoLastFocus=null;
+ farmInfoLastFocus=null;farmInfoUid=null;
+}
+// Manual imports are local-only UNLESS an identically named cloud document exists.
+// Never let ordinary visitors remove legacy/official/cloud-approved records from this dialog.
+function isDeletableLocalFarm(r){return !!(r&&/^manual-/.test(String(r.uid))&&!r.cloudVersion&&!window.PigCommunity?.deletionInfo?.(r.uid)?.isCloud);}
+async function deleteFarmFromDetails(){
+ const uid=farmInfoUid,r=STATE.records.find(x=>x.uid===uid);if(!r)return;
+ const button=$('farmInfoDelete');if(button.disabled)return;
+ const cloud=window.PigCommunity?.deletionInfo?.(uid)||{};
+ if(!isDeletableLocalFarm(r)){
+  if(!cloud.canDelete){notice('這不是可刪除的本機資料；正式豬場僅管理員可刪。');return;}
+  button.disabled=true;
+  try{const ok=await window.PigCommunity.deleteFarm(uid);if(!ok){button.disabled=false;return;}closeFarmDetails();}
+  catch(e){button.disabled=false;notice('雲端刪除失敗：'+String(e.message||e));}
+  return;
+ }
+ if(blockedByOtherTab())return notice('其他分頁已修改資料，請先備份再重新載入。');
+ if(!confirm(`確定刪除本機豬場「${r.name}」？\n這筆資料會從這台裝置的地圖、清單及已匯入總數移除。\n不會刪除雲端正式豬場或已送出的申請。`))return;
+ button.disabled=true;
+ const priorRecords=STATE.records.slice(),priorAudits={...STATE.audits},oldSelected=STATE.selected;
+ STATE.records=STATE.records.filter(x=>x.uid!==uid);
+ for(const [key,a] of Object.entries(STATE.audits)){
+  if(a.recordUid===uid||a.newRecordUid===uid){STATE.audits[key]={...a,recordUid:a.recordUid===uid?'':a.recordUid,newRecordUid:a.newRecordUid===uid?null:a.newRecordUid};}
+ }
+ if(STATE.selected===uid)STATE.selected=null;updateTownOptions();renderStats();renderList();renderMarkers();renderAuditPins();renderAuditHistory();persist(true);
+ const ok=await flushSave();
+ if(!ok){STATE.records=priorRecords;STATE.audits=priorAudits;STATE.selected=oldSelected;updateTownOptions();renderStats();renderList();renderMarkers();renderAuditPins();renderAuditHistory();button.disabled=false;notice('刪除未成功保存，已恢復原資料；請先備份並檢查儲存空間。');return;}
+ closeFarmDetails();notice('已刪除本機豬場；地圖、清單與已匯入總數已更新。');
 }
 function editSelectedFarmFromDetails(){
- const uid=STATE.selected;if(!uid)return;
+ const uid=farmInfoUid;if(!uid)return;
  closeFarmDetails();
  if(window.PigCommunity?.enabled)window.PigCommunity.edit(uid);
  else openRecord(uid,false);
@@ -1603,6 +1636,7 @@ function bind(){
  $('farmInfoDismiss').addEventListener('click',closeFarmDetails);
  $('farmInfoBackdrop').addEventListener('click',closeFarmDetails);
  $('farmInfoEdit').addEventListener('click',editSelectedFarmFromDetails);
+ $('farmInfoDelete').addEventListener('click',deleteFarmFromDetails);
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('farmInfoDialog').hidden){e.preventDefault();e.stopPropagation();closeFarmDetails();}});$('search').addEventListener('input',renderList);$('filterCounty').addEventListener('change',()=>{updateTownOptions({resetTown:true});renderList();});$('filterTown').addEventListener('change',renderList);$('filterReview').addEventListener('change',renderList);
  for(const el of document.querySelectorAll('[data-view]'))el.addEventListener('click',()=>changeView(el.dataset.view));
  for(const el of document.querySelectorAll('[data-tool]'))el.addEventListener('click',()=>mode(el.dataset.tool));
