@@ -8,3 +8,6 @@
 .geo-location-controls .geo-locate-btn:focus-visible,.geo-location-settings>summary:focus-visible{outline:3px solid #72baa0;outline-offset:2px}
 @media(max-width:1024px){.geo-location-controls{right:10px;bottom:56px}.geo-locate-btn{min-height:43px;padding:8px 11px}.geo-location-settings>summary{min-height:43px;width:43px}}
 @media(max-width:390px){.geo-locate-btn span{font-size:12px}}
+
+/* Geolocation is visual only: never block farm, F03 parcel, or map clicks. */
+.leaflet-deviceLocationPane,.leaflet-deviceLocationPane canvas,.leaflet-deviceLocationPane svg,.leaflet-deviceLocationPane path{pointer-events:none!important}

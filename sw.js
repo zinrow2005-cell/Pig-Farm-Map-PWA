@@ -1,5 +1,5 @@
-/* 豬場地圖查核 V3.3.33：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
-const CACHE='pigfarm-shell-v3.3.33-geolocate-20261103';
+/* 豬場地圖查核 V3.3.34：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
+const CACHE='pigfarm-shell-v3.3.34-location-clickfix-20261103';
 const ASSETS=[
  './index.html','./manifest.webmanifest','./favicon.ico',
  './assets/css/app-v3320.css',

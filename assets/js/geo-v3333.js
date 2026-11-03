@@ -31,9 +31,9 @@ function locate(){
   if(!Number.isFinite(lat)||!Number.isFinite(lng))return message('裝置回傳的位置資料無效。');
   clearMarkers();
   for(const map of STATE.maps){
-    const dot=L.circleMarker([lat,lng],{radius:8,color:'#fff',weight:3,fillColor:'#1976d2',fillOpacity:1,interactive:false,pane:'markerPane'}).addTo(map);markers.push(dot);
+    const dot=L.circleMarker([lat,lng],{radius:8,color:'#fff',weight:3,fillColor:'#1976d2',fillOpacity:1,interactive:false,pane:'deviceLocationPane',bubblingMouseEvents:false}).addTo(map);markers.push(dot);
     if(Number.isFinite(accuracy)&&accuracy>0&&accuracy<100000){
-      const circle=L.circle([lat,lng],{radius:accuracy,color:'#1976d2',weight:1,fillColor:'#1976d2',fillOpacity:0.09,interactive:false,pane:'overlayPane'}).addTo(map);markers.push(circle);
+      const circle=L.circle([lat,lng],{radius:accuracy,color:'#1976d2',weight:1,fillColor:'#1976d2',fillOpacity:0.09,interactive:false,pane:'deviceLocationPane',bubblingMouseEvents:false}).addTo(map);markers.push(circle);
     }
     map.setView([lat,lng],Math.max(map.getZoom(),16),{animate:false});
   }
