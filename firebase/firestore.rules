@@ -16,7 +16,9 @@ service cloud.firestore {
     }
     function validFarm(data, id) {
       return data.keys().hasAll(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId'])
-        && data.keys().hasOnly(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId'])
+        && data.keys().hasOnly(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId','auditDecision','auditParcelKey'])
+        && (!data.keys().hasAny(['auditDecision']) || data.auditDecision in ['pig','maybe'])
+        && (!data.keys().hasAny(['auditParcelKey']) || (data.auditParcelKey is string && data.auditParcelKey.size() <= 160))
         && data.uid == id && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 100
         && data.name is string && data.name.size() > 0 && data.name.size() <= 150
         && data.county is string && data.county.size() > 0 && data.county.size() <= 40
@@ -50,11 +52,12 @@ service cloud.firestore {
       // 管理員首次匯入只准新建，不能用舊名冊覆蓋已存在的資料。
       allow create: if admin() && validFarm(request.resource.data, farmId)
         && request.resource.data.version == 1
-        && request.resource.data.approvedSuggestionId == null;
+        && request.resource.data.approvedSuggestionId == null
+        ;
       // 採納建議只能用跨文件交易，兩份資料在相同提交內一致更新。
       allow update: if admin() && validFarm(request.resource.data,farmId)
         && request.resource.data.version == resource.data.version + 1
-        && request.resource.data.approvedSuggestionId is string
+        && ((request.resource.data.approvedSuggestionId == resource.data.approvedSuggestionId) || (request.resource.data.approvedSuggestionId is string
         && request.resource.data.approvedSuggestionId != resource.data.approvedSuggestionId
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.status == 'approved'
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.reviewedBy == request.auth.uid
@@ -65,11 +68,45 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedTown == request.resource.data.town
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedAddress == request.resource.data.address
         && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedLat == request.resource.data.lat
-        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedLng == request.resource.data.lng;
+        && getAfter(/databases/$(database)/documents/suggestions/$(request.resource.data.approvedSuggestionId)).data.proposedLng == request.resource.data.lng));
+      allow delete: if false;
+    }
+    match /farmSubmissions/{id} {
+      allow get: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
+      allow list: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
+      allow create: if signedIn()
+        && request.resource.data.keys().hasAll(['proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','decision','parcelKey','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
+        && request.resource.data.keys().hasOnly(['proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','decision','parcelKey','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
+        && request.resource.data.proposedName is string && request.resource.data.proposedName.size() > 0 && request.resource.data.proposedName.size() <= 150
+        && request.resource.data.proposedCounty is string && request.resource.data.proposedCounty.size() > 0 && request.resource.data.proposedCounty.size() <= 40
+        && request.resource.data.proposedTown is string && request.resource.data.proposedTown.size() > 0 && request.resource.data.proposedTown.size() <= 40
+        && request.resource.data.proposedAddress is string && request.resource.data.proposedAddress.size() <= 220
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.decision in ['pig','maybe']
+        && request.resource.data.parcelKey is string && request.resource.data.parcelKey.size() <= 160
+        && allowedCoords(request.resource.data,'proposedLat','proposedLng')
+        && request.resource.data.proposedLat != null
+        && request.resource.data.submittedBy == request.auth.uid && request.resource.data.submittedAt == request.time
+        && request.resource.data.status == 'pending' && request.resource.data.reviewedBy == null && request.resource.data.reviewedAt == null;
+      allow update: if admin() && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','reviewedBy','reviewedAt'])
+        && request.resource.data.status in ['approved','rejected']
+        && request.resource.data.reviewedBy == request.auth.uid && request.resource.data.reviewedAt == request.time
+        && (request.resource.data.status == 'rejected' || (
+          getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.name == resource.data.proposedName
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.auditDecision == resource.data.decision
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.auditParcelKey == resource.data.get('parcelKey','')
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.county == resource.data.proposedCounty
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.town == resource.data.proposedTown
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.address == resource.data.proposedAddress
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.lat == resource.data.proposedLat
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.lng == resource.data.proposedLng
+        ));
       allow delete: if false;
     }
     match /suggestions/{suggestionId} {
-      allow read: if signedIn();
+      allow get: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
+      allow list: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
       allow create: if signedIn() && validSuggestion(request.resource.data)
         && request.resource.data.submittedBy == request.auth.uid
         && request.resource.data.submittedAt == request.time

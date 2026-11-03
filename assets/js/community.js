@@ -1,13 +1,13 @@
-/* 豬場查核 V3.3.20｜Google Firebase Authentication + Cloud Firestore。 */
+/* 豬場查核 V3.3.30｜Google Firebase Authentication + Cloud Firestore。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
 const esc=value=>String(value??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[x]));
 const conf=root.PIG_FIREBASE_CONFIG||{};
 const configured=!!(conf.apiKey&&conf.projectId&&conf.appId&&conf.authDomain&&!String(conf.apiKey).includes('請填'));
-let auth=null,db=null,A=null,F=null,user=null,admin=false,hook=null,started=false;
+let auth=null,db=null,A=null,F=null,user=null,admin=false,adminReady=false,hook=null,started=false;
 let liveFarms=new Map(),proposals=[],activeFarm=null,unsubFarms=null,unsubProposals=null,loggedInSeq=0;
-let farmsFromCache=true,seedBusy=false,newPoint=null,newBusy=false;
+let farmsFromCache=true,seedBusy=false,newPoint=null,newBusy=false,auditContext=null,unsubNewSubmissions=null,newSubmissions=[];
 function status(msg,bad=false){const el=$('cloudStatus');if(el){el.textContent=msg;el.dataset.error=bad?'yes':'no';}const btn=$('cloudOpen');if(btn)btn.title=msg;}
 function err(e){const code=String(e?.code||''); if(code.includes('permission-denied'))return '沒有資料庫存取權限：請確認 Firestore 規則已發布、Google 登入已啟用及管理員 UID 設定';
  if(code.includes('auth/unauthorized-domain'))return '目前網站網域尚未加入 Firebase Authentication 已授權網域';
@@ -17,7 +17,7 @@ function err(e){const code=String(e?.code||''); if(code.includes('permission-den
  return clean(e?.message||e,200);}
 function enabled(){return configured;}
 function open(){const p=$('cloudPanel');if(!p)return;p.hidden=false;renderUser();renderProposals();if(!configured)status('尚未填入 Firebase Web 設定；目前仍使用本機豬場資料，沒有雲端同步',true);}
-function close(){if($('cloudPanel'))$('cloudPanel').hidden=true;}
+function close(){if($('cloudPanel'))$('cloudPanel').hidden=true;auditContext=null;}
 function renderUser(){
  const who=$('cloudWho'),sign=$('cloudSignIn'),out=$('cloudSignOut'),submit=$('cloudSubmit'),seed=$('cloudSeed');
  const label=user?(admin?'管理員':(user.displayName||user.email||'已登入')):'Google 登入';
@@ -26,15 +26,16 @@ function renderUser(){
  if(who)who.textContent=user?`已登入 ${user.displayName||user.email||'Google 使用者'}${admin?' · 管理者':''}`:'尚未登入：可以查看正式場址；修改須 Google 登入';
  const create=$('cloudNewOpen');if(create){create.hidden=!admin||!db;create.disabled=!admin||!db;}
  if(sign)sign.hidden=!!user;if(out)out.hidden=!user;
- if(submit)submit.disabled=!user||!db;
+ if(submit){submit.disabled=!user||!db||!adminReady;submit.textContent=admin?'直接儲存正式豬場':'送出資料供管理員審核';} const newSubmit=$('cloudNewSubmit');if(newSubmit){newSubmit.disabled=!user||!db||!adminReady||newBusy;newSubmit.textContent=!adminReady?'確認身分權限中…':admin?'儲存正式豬場（免審核）':'送出豬場資料供審核';}
  if(seed){seed.hidden=!admin||!db;seed.disabled=seedBusy;seed.textContent=seedBusy?'正在建立雲端資料…':'初始化／補齊315筆初始豬場（只新增缺漏）';}
  const first=$('cloudAdminFirstRun');if(first)first.hidden=!(admin&&db&&liveFarms.size===0&&!farmsFromCache);
 }
 
 function proposalDate(value){if(value?.toDate)return value.toDate().toLocaleString('zh-TW');return '剛剛';}
 function renderProposals(){const box=$('cloudProposals');if(!box)return;
- if(!user){box.innerHTML='<p class="subtle">登入後可查看最近50筆場址修改建議及其審核結果。</p>';return;}
- box.innerHTML=proposals.length?proposals.map(p=>`<article class="cloud-proposal"><div><strong>${esc(p.proposedName||p.farmUid)}</strong><small> ${esc(p.status==='approved'?'已採納':p.status==='rejected'?'未採納':'待確認')} · ${esc(proposalDate(p.submittedAt))}</small></div><div>${esc(p.proposedCounty)} ${esc(p.proposedTown)} · ${esc(p.proposedAddress)}</div><small>座標：${p.proposedLat===null?'未提供':esc(p.proposedLat)}, ${p.proposedLng===null?'未提供':esc(p.proposedLng)}</small>${p.note?`<small>依據：${esc(p.note)}</small>`:''}${admin&&p.status==='pending'?`<div class="cloud-actions"><button type="button" data-approve="${esc(p.id)}">確認採納</button><button type="button" data-reject="${esc(p.id)}">不採納</button></div>`:''}</article>`).join(''):'<p class="subtle">目前沒有共用編輯紀錄。</p>';
+ if(!user){box.innerHTML='<p class="subtle">登入後可查看自己的申請及審核結果；管理員可查看待審清單。</p>';return;}
+ const combined=[...newSubmissions.map(p=>({...p,kind:'new'})),...proposals];
+ box.innerHTML=combined.length?combined.map(p=>`<article class="cloud-proposal"><div><strong>${esc(p.proposedName||p.farmUid)}</strong><small> ${esc(p.status==='approved'?'已採納':p.status==='rejected'?'未採納':'待確認')} · ${esc(proposalDate(p.submittedAt))}</small></div><div>${esc(p.proposedCounty)} ${esc(p.proposedTown)} · ${esc(p.proposedAddress)}</div><small>座標：${p.proposedLat===null?'未提供':esc(p.proposedLat)}, ${p.proposedLng===null?'未提供':esc(p.proposedLng)}</small>${p.note?`<small>依據：${esc(p.note)}</small>`:''}${p.kind==='new'?'<small>新增豬場申請</small>':''}${admin&&p.status==='pending'?`<div class="cloud-actions"><button type="button" data-approve="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">${p.kind==='new'?'核准新增':'確認採納'}</button><button type="button" data-reject="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">不採納</button></div>`:''}</article>`).join(''):'<p class="subtle">目前沒有共用編輯紀錄。</p>';
 }
 function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到此豬場紀錄',true);return;}activeFarm=uid;
  const cloud=liveFarms.get(uid)||{};
@@ -46,10 +47,10 @@ function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到�
  $('cloudAddress').value=cloud.address??r.address;
  $('cloudLat').value=cloud.lat??(geo?geo[1]:'');$('cloudLng').value=cloud.lng??(geo?geo[0]:'');
  $('cloudNote').value='';$('cloudEditForm').hidden=false;
- if(!user)status('請先使用 Google 登入，再提交這筆修改建議',true);
+ if(!user)status('請先使用 Google 登入，再提交這筆豬場資料',true);
 }
 function beginNew(lat=null,lng=null){
- open();if(!admin||!db||!user){status('目前無法新增正式豬場：必須完成 Google 登入、確認管理員權限及 Firestore 連線。',true);return false;}
+ open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
  const hasCoords=lat!==null&&lng!==null;
  newPoint=hasCoords?{lat:Number(lat),lng:Number(lng)}:{};
  $('cloudEditForm').hidden=true;$('cloudNewForm').hidden=false;
@@ -57,11 +58,11 @@ function beginNew(lat=null,lng=null){
  $('cloudNewLat').value=hasCoords?Number(lat).toFixed(8):'';
  $('cloudNewLng').value=hasCoords?Number(lng).toFixed(8):'';
 
- status(hasCoords?'已從地圖取得座標；請填寫豬場名稱、鄉鎮後儲存。':'請填寫豬場資料與 WGS84 經緯度，再儲存至雲端。');
+ status(hasCoords?'已從地圖取得座標，請填入豬場名稱與地址後確認。':'請填入豬場資料與 WGS84 經緯度。');
  $('cloudNewName').focus();return true;
 }
 async function createFarm(event){
- event.preventDefault();if(!admin||!db||!user){status('無管理員新增權限，無法儲存。',true);return;}
+ event.preventDefault();if(!db||!user||!adminReady){status('請等待 Google 身分及管理員權限確認完成再送出。',true);return;}
  if(newBusy)return;
  const name=clean($('cloudNewName').value,150),county=clean($('cloudNewCounty').value,40),town=clean($('cloudNewTown').value,40),address=clean($('cloudNewAddress').value,220);
  const latText=$('cloudNewLat').value.trim(),lngText=$('cloudNewLng').value.trim();
@@ -72,14 +73,17 @@ async function createFarm(event){
  if([...liveFarms.values()].some(f=>f.lat!=null&&f.lng!=null&&Math.abs(Number(f.lat)-lat)<0.00001&&Math.abs(Number(f.lng)-lng)<0.00001)){
   if(!confirm('已有豬場紀錄位於幾乎相同的位置。確定要新增不同豬場，避免重複建檔？'))return;
  }
- if(!confirm(`確定新增「${name}」至正式雲端豬場清單？\n位置：${county}${town} ${address}\n座標：${lat}, ${lng}`))return;
+ if(!confirm(`確定${admin?'直接建立正式豬場':'提交管理員審查'}「${name}」？\n位置：${county}${town} ${address}\n座標：${lat}, ${lng}`))return;
  newBusy=true;$('cloudNewSubmit').disabled=true;status('正在寫入 Firestore，尚未完成儲存…');
  try{
   const id='manual-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);
-  const data={uid:id,name,county,town,address,lat,lng,version:1,approvedSuggestionId:null,updatedAt:F.serverTimestamp()};
-  await F.setDoc(F.doc(db,'farms',id),data);
+  const data={uid:id,name,county,town,address,lat,lng,version:1,approvedSuggestionId:null,updatedAt:F.serverTimestamp(),auditDecision:auditContext?.decision||'pig',auditParcelKey:clean(auditContext?.parcelKey,160)};
+  let result;
+  if(admin){await F.setDoc(F.doc(db,'farms',id),data);result={uid:id,status:'approved'};}
+  else {await F.addDoc(F.collection(db,'farmSubmissions'),{proposedName:name,proposedCounty:county,proposedTown:town,proposedAddress:address,proposedLat:lat,proposedLng:lng,decision:auditContext?.decision||'pig',parcelKey:clean(auditContext?.parcelKey,160),note:clean(auditContext?.note,500),submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null});result={uid:'',status:'pending'};}
   $('cloudNewForm').hidden=true;newPoint=null;
-  status(`已成功新增「${name}」至 Firestore（ID：${id}）。地圖清單將即時更新。`);
+  if(auditContext){const ctx=auditContext;auditContext=null;if(admin)await ctx.onSaved?.(result);}
+  status(admin?`已正式新增「${name}」至 Firestore（ID：${id}）。`:`「${name}」已送交管理員審查；核准後才會加入正式豬場。`);
  }catch(e){status('新增失敗：'+err(e)+'。請先檢查 Firebase /firestore.rules 是否已部署最新版；資料未確認寫入。',true);}
  finally{newBusy=false;$('cloudNewSubmit').disabled=false;renderUser();}
 }
@@ -88,7 +92,7 @@ function syncIndicator(){if(!db)return;const count=liveFarms.size;
  if(!count&&farmsFromCache){status('Firebase 已載入，正在向伺服器確認豬場資料…');return;}
  status(count?`${farmsFromCache?'離線快取／待確認連線':'Firestore 即時同步'} · ${count} 筆正式豬場 · ${proposals.filter(x=>x.status==='pending').length} 筆待審核`: '已連線至 Firebase，但資料庫尚無豬場；請先登入管理員並初始化315筆資料',!count||farmsFromCache);
 }
-async function submit(event){event.preventDefault();if(!user||!db){status('必須先 Google 登入並連接 Firebase 才能提交',true);return;}
+async function submit(event){event.preventDefault();if(!user||!db||!adminReady){status('請等待身分確認與 Firebase 連線完成再儲存',true);return;}
  const current=liveFarms.get(activeFarm);if(!current){status('雲端沒有這筆豬場，請管理員先初始化資料',true);return;}
  const lat=clean($('cloudLat').value,32),lng=clean($('cloudLng').value,32);
  if(Boolean(lat)!==Boolean(lng)){status('緯度與經度需要同時填寫或同時留空',true);return;}
@@ -98,10 +102,10 @@ async function submit(event){event.preventDefault();if(!user||!db){status('必�
  if(!proposedName||!proposedCounty||!proposedTown){status('豬場名稱、縣市及鄉鎮不能留空',true);return;}
  const payload={farmUid:activeFarm,baseVersion:current.version,proposedName,proposedCounty,proposedTown,proposedAddress:clean($('cloudAddress').value,220),proposedLat:la,proposedLng:lo,note:clean($('cloudNote').value,500),submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null};
  const btn=$('cloudSubmit');btn.disabled=true;status('正在提交至 Google Firestore…');
- try{await F.addDoc(F.collection(db,'suggestions'),payload);status('建議已提交到 Google Firestore，其他登入使用者可同步查看；正式場址須由管理員審核。');$('cloudEditForm').hidden=true;}
+ try{if(admin){await F.runTransaction(db,async tx=>{const ref=F.doc(db,'farms',activeFarm),snap=await tx.get(ref);if(!snap.exists())throw Error('找不到正式豬場');const x=snap.data();tx.update(ref,{name:proposedName,county:proposedCounty,town:proposedTown,address:payload.proposedAddress,lat:la,lng:lo,version:x.version+1,updatedAt:F.serverTimestamp()});});status('管理員已直接更新正式豬場資料。');}else{await F.addDoc(F.collection(db,'suggestions'),payload);status('豬場資料已提交審查，核准後才更改正式地圖。');} $('cloudEditForm').hidden=true;if(auditContext){const ctx=auditContext;auditContext=null;if(admin)await ctx.onSaved?.({uid:activeFarm,status:'approved'});}}
  catch(e){status('提交失敗：'+err(e)+'；請不要當成已成功同步。',true);}finally{renderUser();}
 }
-async function review(id,approve){if(!admin||!user||!db)return;const p=proposals.find(x=>x.id===id);if(!p||p.status!=='pending')return;
+async function review(id,approve,kind='edit'){if(kind==='new')return reviewNew(id,approve);if(!admin||!adminReady||!user||!db)return;const p=proposals.find(x=>x.id===id);if(!p||p.status!=='pending')return;
  if(!confirm(`確定${approve?'採納':'退回'}「${p.proposedName}」的修改嗎？`))return;
  status('正在執行雲端交易與版本檢查…');
  try{await F.runTransaction(db,async tx=>{
@@ -115,13 +119,38 @@ async function review(id,approve){if(!admin||!user||!db)return;const p=proposals
  });status(approve?'已採納：正式地址與地圖將透過即時監聽更新':'已標記不採納');}
  catch(e){status('審核失敗：'+err(e),true);}
 }
+async function reviewNew(id,approve){
+ if(!admin||!adminReady||!db||!user)return;
+ const p=newSubmissions.find(x=>x.id===id);if(!p||p.status!=='pending')return;
+ if(!confirm(`確定${approve?'核准建立':'退回'}「${p.proposedName}」？`))return;
+ try{await F.runTransaction(db,async tx=>{
+  const ref=F.doc(db,'farmSubmissions',id),farmRef=F.doc(db,'farms','submitted-'+id);
+  const snap=await tx.get(ref);if(!snap.exists()||snap.data().status!=='pending')throw Error('案件已處理或不存在');
+  const d=snap.data();if(approve){const duplicate=await tx.get(farmRef);if(duplicate.exists())throw Error('正式紀錄已存在');
+   tx.set(farmRef,{uid:'submitted-'+id,name:d.proposedName,county:d.proposedCounty,town:d.proposedTown,address:d.proposedAddress,lat:d.proposedLat,lng:d.proposedLng,version:1,approvedSuggestionId:null,updatedAt:F.serverTimestamp(),auditDecision:d.decision,auditParcelKey:d.parcelKey||''});}
+  tx.update(ref,{status:approve?'approved':'rejected',reviewedBy:user.uid,reviewedAt:F.serverTimestamp()});
+ });status(approve?'已核准：送出者填寫的名稱、地址與座標已建立正式豬場。':'已退回申請。');}
+ catch(e){status('審核失敗：'+err(e),true);}
+}
+function beginAudit(lat,lng,decision,linkedUid,note,onSaved,parcelKey=''){
+ auditContext=null;
+ if(!user||!db||!adminReady){open();status('請先 Google 登入並等待權限確認，才能填寫豬場資料。',true);return false;}
+ auditContext={decision,note,onSaved,parcelKey:clean(parcelKey,160)};
+ if(linkedUid&&liveFarms.has(linkedUid)){edit(linkedUid);$('cloudLat').value=lat.toFixed(8);$('cloudLng').value=lng.toFixed(8);$('cloudNote').value=note||'';
+  status(admin?'請核對既有豬場資料，直接儲存後套用查核結果。':'請填寫豬場資料並送審；管理員核准後才更新正式資料。');return true;}
+ beginNew(lat,lng);status(admin?'請填寫名稱與地址；管理員儲存後直接生效。':'請填寫名稱與地址；送審後須經管理員核准才會正式生效。');return true;
+}
+function subscribeNewSubmissions(){if(unsubNewSubmissions){unsubNewSubmissions();unsubNewSubmissions=null;}newSubmissions=[];renderProposals();if(!user)return;
+ const q=admin?F.query(F.collection(db,'farmSubmissions'),F.orderBy('submittedAt','desc'),F.limit(50)):F.query(F.collection(db,'farmSubmissions'),F.where('submittedBy','==',user.uid),F.limit(50));
+ unsubNewSubmissions=F.onSnapshot(q,s=>{newSubmissions=s.docs.map(d=>({...d.data(),id:d.id}));renderProposals();},e=>status('新增豬場審核清單讀取失敗：'+err(e),true));
+}
 async function signIn(){if(!auth||!A){status('Firebase 尚未正確設定或套件尚未載入',true);return;}
  const btn=$('cloudSignIn');if(btn)btn.disabled=true;status('正在開啟 Google 登入視窗…');
  try{await A.signInWithPopup(auth,new A.GoogleAuthProvider());status('Google 帳號登入成功，正在同步資料…');}
  catch(e){status('登入未完成：'+err(e)+'。iPhone/iPad若使用主畫面PWA不支援彈窗，請先用 Safari 網頁登入。',true);}finally{if(btn)btn.disabled=false;}
 }
 async function signOut(){if(!auth)return;try{await A.signOut(auth);status('已登出 Google；仍可查看公開的正式豬場。');}catch(e){status(err(e),true);}}
-async function checkAdmin(u){if(!u||!db)return false;try{const result=await F.getDoc(F.doc(db,'admins',u.uid));return result.exists()&&result.data()?.role==='admin';}catch(e){status('無法確認管理者權限：'+err(e),true);return false;}}
+async function checkAdmin(u){if(!u||!db)throw Error('資料庫尚未連線');const result=await F.getDoc(F.doc(db,'admins',u.uid));return result.exists()&&result.data()?.role==='admin';}
 function maybeShowAdminSetup(){
  if(!admin||!db||liveFarms.size!==0||farmsFromCache)return;
  let shown=false;try{shown=sessionStorage.getItem('pig3319-admin-setup-shown')==='1';}catch(_e){}
@@ -136,11 +165,11 @@ function subscribeFarms(){if(unsubFarms)unsubFarms();unsubFarms=F.onSnapshot(F.c
  },e=>status('Firestore 正式豬場即時監聽失敗：'+err(e),true));}
 function subscribeSuggestions(){if(unsubProposals){unsubProposals();unsubProposals=null;}
  proposals=[];renderProposals();if(!user)return;
- const q=F.query(F.collection(db,'suggestions'),F.orderBy('submittedAt','desc'),F.limit(50));
+ const q=admin?F.query(F.collection(db,'suggestions'),F.orderBy('submittedAt','desc'),F.limit(50)):F.query(F.collection(db,'suggestions'),F.where('submittedBy','==',user.uid),F.limit(50));
  unsubProposals=F.onSnapshot(q,snapshot=>{proposals=snapshot.docs.map(d=>({...d.data(),id:d.id}));renderProposals();syncIndicator();},e=>status('修改建議即時監聽失敗：'+err(e),true));
 }
-async function onUserChanged(u){const seq=++loggedInSeq;user=u;admin=false;renderUser();subscribeSuggestions();if(!u){syncIndicator();return;}
- const value=await checkAdmin(u);if(seq!==loggedInSeq)return;admin=value;renderUser();subscribeSuggestions();syncIndicator();
+async function onUserChanged(u){const seq=++loggedInSeq;user=u;admin=false;adminReady=false;renderUser();subscribeSuggestions();subscribeNewSubmissions();if(!u){syncIndicator();return;}
+ let value;try{value=await checkAdmin(u);}catch(e){if(seq===loggedInSeq){status('無法確認帳號權限，已暫停新增及送審：'+err(e),true);}return;}if(seq!==loggedInSeq)return;admin=value;adminReady=true;renderUser();subscribeSuggestions();subscribeNewSubmissions();syncIndicator();
  maybeShowAdminSetup();}
 
 async function refresh(){if(!db){status('Firebase 尚未連線',true);return;}
@@ -174,8 +203,8 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudEditForm')?.addEventListener('submit',submit);
  $('cloudNewOpen')?.addEventListener('click',()=>beginNew());
  $('cloudNewForm')?.addEventListener('submit',createFarm);
- $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;newPoint=null;});
- $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve);});
+ $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;newPoint=null;auditContext=null;});
+ $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve,target.dataset.kind||'edit');});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cloudPanel').hidden)close();});
  if(!configured){status('尚未設定 Google Firebase：此版本目前仍是本機模式，沒有多人同步',true);renderUser();return;}
  if(location.protocol==='file:'){status('請透過 HTTPS GitHub Pages 開啟網站，才能使用 Firebase；直接開啟本機 HTML 無法驗收登入。',true);return;}
@@ -188,5 +217,5 @@ async function start(options){if(started)return;started=true;hook=options;
  subscribeFarms();A.onAuthStateChanged(auth,u=>{onUserChanged(u).catch(e=>status(err(e),true));},e=>status('Firebase Authentication 發生問題：'+err(e),true));
  }catch(e){status('Firebase 啟動失敗：'+err(e)+'。沒有啟用共用同步。',true);}
 }
-root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,beginNew,pull:refresh};
+root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,beginNew,beginAudit,pull:refresh};
 })(window);

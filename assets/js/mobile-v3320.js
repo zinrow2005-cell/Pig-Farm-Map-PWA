@@ -27,6 +27,9 @@
  $('mobileActionInspect')?.addEventListener('click',()=>action('toolInspect'));
  $('mobileActionPoint')?.addEventListener('click',()=>action('toolPoint'));
  $('mobileActionWorkbench')?.addEventListener('click',()=>action('workbenchOpen'));
+ $('mobileActionATIS')?.addEventListener('click',()=>action('headATIS'));
+ $('mobileActionHealth')?.addEventListener('click',()=>action('dataHealthOpen'));
+ $('mobileActionBackup')?.addEventListener('click',()=>action('backupTop'));
  $('mobileActionAim')?.addEventListener('click',()=>{closeActions();clickOriginal('mobileAimMain');});
  $('mobileAimCapture')?.addEventListener('click',()=>clickOriginal('mobileAimMain'));
  $('mobileAimCancel')?.addEventListener('click',()=>clickOriginal('mobileAimClose'));
