@@ -297,6 +297,7 @@ const F03='https://gis.forest.gov.tw/arcgis/rest/services/BA/BA_%E8%BE%B2%E6%A5%
 const COLORS={pig:'#288764',maybe:'#efa134',other:'#7c9197',unchecked:'#4a81ad'};
 const CATEGORY={pig:'豬場',maybe:'疑似豬場',other:'其他用途',unchecked:'待判讀'};
 const CLOUD_DELETED_IDS=new Set();
+const CLOUD_PARCEL_LINKS=new Map(); // Only unique cloud parcel links may auto-promote imported audits.
 const STATE={zones:[],activeZoneId:null,queueZoneId:null,zoneAreaLayers:[],zoneCandidateLayers:[],showZoneOutlines:true,showZoneCandidates:true,candidateSkips:{},queueRows:[],queueSelectedKey:null,queueSeq:0,queueBounds:null,queueScanActive:false,queueHighlights:[],showAuditAreas:true,auditAreaGroups:[],inspectPreviewGroups:[],audits:{},inspectPoint:null,inspectParcel:null,inspectSeq:0,pendingSnap:null,mobileAimActive:false,savingAudit:false,failedAuditKey:null,records:[],selected:null,tool:'browse',locateId:null,draw:[],drawLayers:[],markerGroups:[],selectedFarmGroups:[],auditGroups:[],filtered:[],maps:[],bases:[],f03:null,f03Year:0,f03Gen:0,year:4,opacity:0.7,showF03:true,view:'both',mapReady:false,linking:false,saveTimer:null,viewSaveTimer:null,layerTimer:null,toastTimer:null,center:[23.704,120.398],zoom:12};
 function html(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function notice(message){const el=$('toast');el.textContent=message;el.hidden=false;clearTimeout(STATE.toastTimer);STATE.toastTimer=setTimeout(()=>el.hidden=true,3600);}
@@ -1196,7 +1197,7 @@ function promoteAuditToFarm(parcelKey,cloudUid){
 }
 function renderAuditHistory(){const target=$('auditHistoryList');if(!target)return;
  const all=Object.values(STATE.audits).sort((a,b)=>(b.checkedAt||'').localeCompare(a.checkedAt||''));
- target.innerHTML=all.length?all.map(a=>`<div class="audit-history-entry"><button type="button" class="audit-history-open" data-audit-key="${html(a.key)}"><b>${html(auditLabel(a))}${a.promotedToUid?' · 已轉正式豬場':''}</b>${a.recordUid&&STATE.records.some(r=>r.uid===a.recordUid)?` · <span class="subtle">關聯 ${html(STATE.records.find(r=>r.uid===a.recordUid).name)}</span>`:''}　${a.source==='manual'?'人工位置':((a.source==='tile'?'圖磚局部輪廓':('官方地塊 #'+html(a.objectId)))+(validAuditGeo(a.geometry)?' · 已有輪廓':' · 僅座標'))}<small>${Number(a.lat).toFixed(6)}, ${Number(a.lng).toFixed(6)} · ${html((a.checkedAt||'').slice(0,10))}</small></button><button type="button" class="audit-history-delete" data-delete-local-audit="${html(a.key)}" aria-label="刪除這台裝置的 ${html(auditLabel(a))} 查核標記">刪除本機標記</button></div>`).join(''):'<p class="subtle" style="padding:8px">尚無本機查核記錄。點選橘色地塊，或以人工方式標記已查的位置。</p>';
+ target.innerHTML=all.length?all.map(a=>`<div class="audit-history-entry"><button type="button" class="audit-history-open" data-audit-key="${html(a.key)}"><b>${html(auditLabel(a))}${a.linkedBy==='cloud-deleted'?' · 正式豬場已刪除（歷史保留）':a.promotedToUid?' · 已轉正式豬場':''}</b>${a.recordUid&&STATE.records.some(r=>r.uid===a.recordUid)?` · <span class="subtle">關聯 ${html(STATE.records.find(r=>r.uid===a.recordUid).name)}</span>`:''}　${a.source==='manual'?'人工位置':((a.source==='tile'?'圖磚局部輪廓':('官方地塊 #'+html(a.objectId)))+(validAuditGeo(a.geometry)?' · 已有輪廓':' · 僅座標'))}<small>${Number(a.lat).toFixed(6)}, ${Number(a.lng).toFixed(6)} · ${html((a.checkedAt||'').slice(0,10))}</small></button><button type="button" class="audit-history-delete" data-delete-local-audit="${html(a.key)}" aria-label="刪除這台裝置的 ${html(auditLabel(a))} 查核標記">刪除本機標記</button></div>`).join(''):'<p class="subtle" style="padding:8px">尚無本機查核記錄。點選橘色地塊，或以人工方式標記已查的位置。</p>';
 }
 
 function renderAuditPins(){if(!STATE.mapReady||!STATE.auditGroups?.length)return;
@@ -1386,6 +1387,7 @@ async function saveAudit(decision,cloudResult=null){if(STATE.savingAudit)return 
   $('auditDecision').textContent='已轉成正式豬場標記，原人工判定標記已自動隱藏。';
   $('auditSavingNote').textContent='✓ 已核定並完成標記轉換';
   $('auditNeighbors').value=cloudResult.uid;updateAuditRemoveButton();
+  window.PigCommunity?.publishAudit?.(STATE.audits[parcel.key]);
   notice('正式豬場已建立，原人工判定標記已自動轉換，不必另行刪除。');
   return true;
  }
@@ -1420,7 +1422,7 @@ const parcel=STATE.inspectParcel,pos=STATE.inspectPoint;if(!parcel||!pos)return 
  try{persist();ok=await flushSave();}
  finally{STATE.savingAudit=false;buttons.forEach(b=>b.disabled=false);}
  if(!ok){STATE.failedAuditKey=parcel.key;$('auditSavingNote').textContent='⚠ 本機儲存失敗；已留在目前查核畫面。請立即下載 JSON 備份，確認儲存後再繼續。';notice('儲存失敗：不會自動前往下一處。請先下載備份。');return false;}
- STATE.failedAuditKey=null;$('auditSavingNote').textContent='✓ 查核結果已寫入 '+lastSavedMethod;
+ STATE.failedAuditKey=null;window.PigCommunity?.publishAudit?.(STATE.audits[parcel.key]);$('auditSavingNote').textContent='✓ 查核結果已寫入 '+lastSavedMethod;
  $('auditDecision').textContent='已記錄此次人工判讀（非官方豬場證明）。';$('auditNeighbors').value=uid;updateAuditRemoveButton();
  notice(decision==='other'?'已儲存非豬場，沒有建立豬場標記。':cloudResult?.status==='approved'?'管理員已直接核定豬場，並完成地塊關聯。':'已保存查核；一般使用者送審後須等待管理員核准。');
  if(queueKey&&$('queueAutoNext').checked)nextQueueCandidate();
@@ -2109,6 +2111,8 @@ function initF03MatchPanel(){
 /* V3.3.18 共用場址只覆蓋名稱、縣市、鄉鎮、地址和座標，不碰人工核定/查核資料。 */
 function applyCloudFarms(rows){
  if(!Array.isArray(rows))return;
+ CLOUD_PARCEL_LINKS.clear();
+ for(const item of rows){if(!item.auditParcelKey||CLOUD_DELETED_IDS.has(item.uid))continue;const key=item.auditParcelKey;const existing=CLOUD_PARCEL_LINKS.get(key);CLOUD_PARCEL_LINKS.set(key,existing===undefined?item.uid:null);}
  let changed=false, auditChanged=false;
  for(const cloud of rows){if(CLOUD_DELETED_IDS.has(cloud.uid))continue;let r=STATE.records.find(x=>x.uid===cloud.uid);if(!r){const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;r=C.normalize({uid:cloud.uid,name:cloud.name||'未命名豬場',county:cloud.county||'雲林縣',town:cloud.town||'',address:cloud.address||'',geometry:loc,category:cloud.auditDecision==='maybe'?'maybe':'pig',review:'pending',source:'管理員雲端新增',createdAt:new Date().toISOString()});STATE.records.push(r);changed=true;}
   const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;
@@ -2125,7 +2129,28 @@ function applyCloudFarms(rows){
  if(changed||auditChanged){updateTownOptions();renderStats();renderList();if(STATE.mapReady){renderMarkers();renderAuditPins();}F03_MATCH.dirty=true;}
  if(auditChanged)persist();
 }
-function removeDeletedCloudFarms(ids){let changed=false;for(const id of ids||[]){CLOUD_DELETED_IDS.add(id);const before=STATE.records.length;STATE.records=STATE.records.filter(r=>r.uid!==id);if(STATE.records.length!==before)changed=true;for(const audit of Object.values(STATE.audits)){if(audit.recordUid===id){audit.recordUid='';changed=true;}if(audit.newRecordUid===id){audit.newRecordUid=null;changed=true;}if(audit.promotedToUid===id){delete audit.promotedToUid;changed=true;}}if(STATE.selected===id){STATE.selected=null;closeFarmDetails();}}if(changed){updateTownOptions();renderStats();renderList();renderMarkers();renderAuditPins();persist();}}
+// Cloud review import is additive only: never overwrites device-local reviews.
+// Imports contain no polygon geometry; local user can re-query the official outline.
+async function importSharedAudits(rows){
+ if(!Array.isArray(rows)||blockedByOtherTab())return null;
+ const before={...STATE.audits};let added=0,skipped=0;
+ for(const item of rows.slice(0,500)){
+  const key=String(item?.key||'').slice(0,160),lat=Number(item?.lat),lng=Number(item?.lng);
+  if(!key||STATE.audits[key]||!['pig','maybe','other','defer'].includes(item?.decision)||!C.coord(lat,lng)){skipped++;continue;}
+  const linked=CLOUD_PARCEL_LINKS.get(key);
+  const promoted=String(item.promotedToUid||linked||'');
+  STATE.audits[key]={key,lat,lng,year:Number(item.year)===3?3:4,decision:item.decision,
+   source:['manual','tile','offline','official'].includes(item.source)?item.source:'manual',geometry:null,
+   note:String(item.note||'').slice(0,500),recordUid:promoted||String(item.recordUid||'').slice(0,100),
+   promotedToUid:promoted||null,linkedBy:promoted?'cloud-approved':'cloud-import',
+   checkedAt:new Date().toISOString(),cloudOwnerUid:String(item.ownerUid||'')};added++;
+ }
+ if(added){persist(true);if(!await flushSave()){STATE.audits=before;renderAuditPins();renderStats();return null;}
+  renderAuditPins();renderStats();renderQueue();renderAuditHistory();}
+ return {added,skipped};
+}
+function removeDeletedCloudFarms(ids){let changed=false;
+ for(const [key,uid] of CLOUD_PARCEL_LINKS)if((ids||[]).includes(uid))CLOUD_PARCEL_LINKS.delete(key);for(const id of ids||[]){CLOUD_DELETED_IDS.add(id);const before=STATE.records.length;STATE.records=STATE.records.filter(r=>r.uid!==id);if(STATE.records.length!==before)changed=true;for(const audit of Object.values(STATE.audits)){if(audit.recordUid===id){audit.recordUid='';changed=true;}if(audit.newRecordUid===id){audit.newRecordUid=null;changed=true;}if(audit.promotedToUid===id){audit.linkedBy='cloud-deleted';changed=true;}}if(STATE.selected===id){STATE.selected=null;closeFarmDetails();}}if(changed){updateTownOptions();renderStats();renderList();renderMarkers();renderAuditPins();persist();}}
 async function init(){const f03Diag=$('f03Diag');if(f03Diag)f03Diag.addEventListener('click',()=>window.open('tools/f03-test.html','_blank','noopener'));if(PREVIEW_ENV){const box=$('previewNotice');if(box)box.hidden=false;}bind();setupCompactWorkbench();initF03MatchPanel();initStatExplorer();await initializeData();updateTownOptions();renderList();refreshWorkflowSummary();$('showF03').checked=STATE.showF03;$('f03Year').value=String(STATE.year);$('opacity').value=String(Math.round(STATE.opacity*100));$('opacityLabel').textContent=Math.round(STATE.opacity*100)+'%';$('showAuditAreas').checked=STATE.showAuditAreas;$('maps').className='maps '+STATE.view;document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===STATE.view));try{const savedMode=localStorage.getItem('pig-f03-source-mode-v337');if(['builtin','online','offline'].includes(savedMode))f03SourceMode=savedMode;}catch(e){}
   let bundledError='';try{
     const raw=window.PIG_F03_BUNDLED_TEXT;
@@ -2142,7 +2167,7 @@ async function init(){const f03Diag=$('f03Diag');if(f03Diag)f03Diag.addEventList
   $('f03Source').value=f03SourceMode;updateF03YearInfo();await reloadOfflineF03(STATE.year);
   if(bundledError)offlineStatus('內建圖資校驗失敗，已退回線上圖層：'+bundledError,true);
   else if(f03SourceMode==='builtin')offlineStatus(offlineSummary());
-  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),findRecords:term=>STATE.records.filter(r=>[r.name,r.county,r.town,r.address,r.legacyId,r.uid].join(' ').toLocaleLowerCase().includes(term)).map(r=>({uid:r.uid,name:r.name,county:r.county,town:r.town,address:r.address,located:!!C.center(r)})),pickExistingOnMap:uid=>{STATE.locateId=uid;closeFarmDetails();closeEditor();mode('locate');notice('請點選地圖上的正確位置，選完會回到原本豬場資料編輯。');},applyApproved:applyCloudFarms,removeDeleted:removeDeletedCloudFarms,focusApproved:uid=>focusFarmRecord(uid,{move:true}),notifyApproved:message=>notice(message),getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
+  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),findRecords:term=>STATE.records.filter(r=>[r.name,r.county,r.town,r.address,r.legacyId,r.uid].join(' ').toLocaleLowerCase().includes(term)).map(r=>({uid:r.uid,name:r.name,county:r.county,town:r.town,address:r.address,located:!!C.center(r)})),pickExistingOnMap:uid=>{STATE.locateId=uid;closeFarmDetails();closeEditor();mode('locate');notice('請點選地圖上的正確位置，選完會回到原本豬場資料編輯。');},applyApproved:applyCloudFarms,removeDeleted:removeDeletedCloudFarms,focusApproved:uid=>focusFarmRecord(uid,{move:true}),notifyApproved:message=>notice(message),getLocalAudits:()=>Object.values(STATE.audits),importSharedAudits,getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){
  if(STATE.viewSaveTimer){clearTimeout(STATE.viewSaveTimer);STATE.viewSaveTimer=null;persist();}
  if(dirtyRev>committedRev)flushSave();

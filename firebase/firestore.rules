@@ -30,7 +30,9 @@ service cloud.firestore {
     }
     function validSuggestion(data) {
       return data.keys().hasAll(['farmUid','baseVersion','proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
-        && data.keys().hasOnly(['farmUid','baseVersion','proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
+        && data.keys().hasOnly(['farmUid','baseVersion','proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt','parcelKey','decision'])
+        && (!data.keys().hasAny(['parcelKey']) || (data.parcelKey is string && data.parcelKey.size()<=160))
+        && (!data.keys().hasAny(['decision']) || data.decision in ['pig','maybe'])
         && data.farmUid is string && data.farmUid.size() > 0 && data.farmUid.size() <= 100
         && data.baseVersion is int && data.baseVersion >= 1
         && data.proposedName is string && data.proposedName.size() > 0 && data.proposedName.size() <= 150
@@ -144,6 +146,34 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/farms/$(resource.data.farmUid)).data.version == resource.data.baseVersion + 1
         ));
       allow delete: if false;
+    }
+    // V3.3.46: cloud copies of human review. This is NOT a formal farm.
+    // Each authenticated user owns their copy; only the owner or an admin
+    // can read. Query must constrain ownerUid for ordinary users.
+    function validSharedAudit(d) {
+      return d.keys().hasAll(['key','lat','lng','decision','year','source','note','recordUid','promotedToUid','ownerUid','updatedAt'])
+        && d.keys().hasOnly(['key','lat','lng','decision','year','source','note','recordUid','promotedToUid','ownerUid','updatedAt'])
+        && d.key is string && d.key.size()>0 && d.key.size()<=160
+        && d.decision in ['pig','maybe','other','defer']
+        && d.year in [3,4]
+        && d.source in ['official','manual','tile','offline']
+        && d.note is string && d.note.size()<=500
+        && d.recordUid is string && d.recordUid.size()<=100
+        && d.promotedToUid is string && d.promotedToUid.size()<=100
+        && d.ownerUid is string && d.ownerUid.size()>0
+        && d.updatedAt == request.time && allowedCoords(d,'lat','lng')
+        && d.lat != null;
+    }
+    match /sharedAudits/{id} {
+      allow get, list: if admin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if signedIn() && validSharedAudit(request.resource.data)
+        && id.matches('^audit-' + request.auth.uid + '-[0-9a-z]+$')
+        && request.resource.data.ownerUid == request.auth.uid;
+      allow update: if signedIn() && validSharedAudit(request.resource.data)
+        && id.matches('^audit-' + request.auth.uid + '-[0-9a-z]+$')
+        && resource.data.ownerUid == request.auth.uid
+        && request.resource.data.ownerUid == resource.data.ownerUid;
+      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
     }
     match /{path=**} {
       allow read, write: if false;

@@ -386,3 +386,15 @@
 .audit-history-list .audit-history-entry .audit-history-delete{width:auto;min-width:96px;flex:none;margin:0;padding:8px 10px;align-self:center;background:#fff4f4;color:#a52a2a;border:1px solid #ddbbbb;text-align:center;font-weight:600}
 .audit-history-delete:focus-visible,.audit-remove:focus-visible{outline:3px solid #f0a4a4;outline-offset:2px}
 @media(max-width:700px){.audit-history-entry{gap:4px}.audit-history-list .audit-history-entry .audit-history-delete{min-height:44px;min-width:86px;padding:5px;font-size:12px}#auditRemove:not([hidden]){min-height:42px}}
+
+/* V3.3.46: compact unified cloud operations, mobile-friendly wrapping */
+.cloud-unified-tools,.cloud-sync-section{margin:10px 0;padding:12px;border:1px solid #d8e8df;border-radius:12px;background:#f7faf8}
+.cloud-unified-tools .cloud-auth-input,.cloud-sync-section .cloud-auth-input{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+.cloud-unified-tools button,.cloud-sync-section button{min-height:38px;white-space:normal}
+.cloud-sync-section .cloud-proposal-list{max-height:250px;overflow:auto}
+.cloud-sync-entry{padding:7px 9px;border-bottom:1px solid #dae8dd;font-size:13px}
+.cloud-sync-entry small{display:block;color:#63786f}
+@media(max-width:700px){.cloud-unified-tools,.cloud-sync-section{padding:9px}.cloud-unified-tools button,.cloud-sync-section button{flex:1 1 140px}}
+/* The management dashboard must not push the actual editor below the fold on phones. */
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-unified-tools,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-sync-section {display:none!important}
