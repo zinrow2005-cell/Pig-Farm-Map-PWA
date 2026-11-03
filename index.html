@@ -1,6 +1,6 @@
 <!doctype html><html lang="zh-Hant"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#173e38">
-<title>豬場地圖查核｜V3.3.20</title>
+<title>豬場地圖查核｜V3.3.22</title>
 <meta name="description" content="雲林豬場分布、畜牧使用地塊與正射影像人工查核">
 <meta name="color-scheme" content="light">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -14,6 +14,8 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
 <link rel="stylesheet" href="./assets/css/app-v3320.css">
 <link rel="stylesheet" href="./assets/css/mobile-v3320.css">
+<link rel="stylesheet" href="./assets/css/farm-info-v3321.css">
+<link rel="stylesheet" href="./assets/css/help-v3322.css">
 <script src="./data/f03-y112-yunlin.js"></script>
 <script src="./data/legacy-farms.js"></script>
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
@@ -23,13 +25,14 @@
 <script src="./assets/js/community.js"></script>
 <script src="./assets/js/app.js"></script>
 <script src="./assets/js/mobile-v3320.js"></script>
+<script defer src="./assets/js/help-v3322.js"></script>
 
 </head><body>
 <div class="app">
 <header class="topbar">
-  <div class="brand"><span class="logo" aria-hidden="true"><img width="44" height="44" alt="" src="data:image/webp;base64,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"></span><span><b>豬場地圖查核</b><small>雙圖層人工判讀 · V3.3.20</small></span></div>
+  <div class="brand"><span class="logo" aria-hidden="true"><img width="44" height="44" alt="" src="data:image/webp;base64,UklGRsYPAABXRUJQVlA4WAoAAAAQAAAAXwAAXwAAQUxQSMEEAAABCQZtIzlSNnPfnz/gaxQi+j8BDH97UIDs6XEBJBLLrm75qk+rqskQklSpE9DWkUR1QOI9A+0YRMMQ8//dND0iJgDyVt8Uxm0kKaplvLv8c66jX8QETIAnattN27Zt6/1yLq3b5rBt2w6OMe0ZshljyLZt27Zt2+iuOX+BwpxrC81QREwA8Z9KCIQWIwU50R8i8mKiQAJYs2HNCs3iwf8dzKAmLBaKM1h1xvlnnbB93XLgovPO2Bn++qs/ZWJYDBQSS666/erDaGeDAsD/vvKO9/yW6DxvIbHxnvc5GVIiCAHYthbg3+98/teIea4EK+//oB3MHMRYZy8hvfmp30dzFBLX3GMHB0NgWqcm7H36kwlzI9bddiIHo+iXhwGp0ddPx/PCcRdxKIiyni09+XTQfBx2GA6UT2nZMXguNqywKCl3oRkb0ByYJFyi3wQwqu7fWIgqBfBX6ja/3h/MpAY0BmzxQ2JFOfz499FM15Y1BDns+QahGutfX8EUdAtrCLj5XhNVC7yDOo0GYB7mWEkOH/t9k1EF/QLh+K8dCnWEf70yWACSahC0lH7zkhyrcHjuf6LpFiokTLfcHHh6dAXmL68MqY+KUAqv+VHMxZSbBlGtzFCHPR9mFgqJ7SczWqoFh5VnklXEHH0MeVRBmdGJM7dT0hy3DVGz0QhlTj0RTybWNEmUtwZMu6ORJko87Scyc595xkdimobI646dxWEuZDTIXQ1NFlOly+46a4YNdD05/uQ3TG8eg1vuUd/UHtad9MQUpgvefS7Bxu7q1WQjbXBa+o7XB08HPmwJVVtDEPbCZ+4ZKCr2ZKF6Rjv+9qb/UcgrPxzN3EoBuUzw0f8IgzyVNRGsWGFKL3fWEE1VUKL4AiXVp+lyLpcDns59BffvL7d/QYDUsj1itD3K/Gdvuf8sBPrFhPaQCc0fcnAZ808BGAFogtHqU9cvCBTSnn9gg91C41QGvk3xmL5PxpS1B4yNfA2Xgq+ChDSZAIFHCXD8w3fJpTJfTA1guj0OEKAxAkj+0p7oYvrej0IGUMdADymo9yOKx4PvoaNbfRrhSbzw7/eTymXeMGs61JpcY9RKev+foysI3/t0SGAqNwReTJXimYjKhSE1X/hsSDWk8MGvNglckeh+qkWVMV997qEIQqBJNMZ0PxJT7QOghcFTeAwIwqFLz8qxlpCPuDIF6pbjnahYvn5Nqo0blqN6EFdg1eGOMDv2uCRqyqtPJdTRqbzsbAKVygDKO7ZbXSqhLnMC3VK5XrF5pbuq3AlqmXoQ6xq3DGgaDVi9kGmLyldFMGAmFeCWaILVUbsIGUS3hIcIbLotM6dmluk2vQa5ZXqdmF8xC6gFNrIwAjM0W3MENMFdU9pAEP3SPJhleDJhgug387qagdYwxLLoAXMr1mB1MQZLBUOzmX4PErYKioLNfWgIhwmBAuS4qW+g8poLNOUVO9AI5ZWbEWggb95uDcvNLmR3rU0aIHMYchGHL7H64Ci8yCCOwz2B45eYRVRqmVPolo/cnNQVKGADymuOR4DT5qMR7SCAqfJhh80CzOLpiG4XxCkrM4fCuQyUAc4mxh+vtPpsZdb96+vHJtGWECSesP580/biRMgEupAW7vp/WgBWUDgg3goAANAvAJ0BKmAAYAA+MRSHQqIhC8YfKBABglsANOUaQBnwv47eyVT36b92/yX6CAw3Yz+w+5b31+ob8vf8D3AP0p/2/6vdiPzE/r5+1HvI+h3/M+oB/SP9T6UnsC+gB5YH7gfBR+3f7cfAX+wf/k6wDhL/5z2q/4D8R/2x9afDz6a9nf3H5enPnbZfH/lf6998fxh1AvVv9r/LzjAOTf0n/Vf2fkJ7l7/deUl/gPFa8V9gD8zf7f0kf93/Qedz84/wv/T/yHwC/y3+i/7/+/+2X7Kv3A9lf9lXGD3H+/9kZ6RLlRVQCgfqplY5ZTjdinhzOQ2a48R1H7bPl+vxPacbdg0HW0Y/M1ypg2Bej8XjFMwaQzl2le55J6bE/5oDODcYiibomPGJBSywVjPZD+XtIBNKRciDfLExVs7kKdKHvJ5zRmiA+RozRjTaCn8DjFaoQ4ReqDkcwwThjZ0LHlyIQQk1cS4UO7BTNX4yQi9lM3rTrtL9qdqLQsCLCX1kJwbUwXLeZcx/gQAA/v+Pvgv/ebA/493KHHvLQE2hQCf0t3FcnihUrIXQ+op/NPoH9JphwiW6XhoeD1Y79kfbrC5frFJB/Avk9PXjHRft+xBVC3fXIyR/uZup+FaqDqhUwjn8AzgsvkHs/UM5j7GS4+TuajItq7aZ1UoTnqmHZb+Eh/a2aPAwQIc6+nZHkmP2DxF07RI6pBe+r4X3aLSTOoSgJVdQf+IPLHOq862+bZNX5lyE7bg3IrLmsxwJy9I6xOeVZcn6M3aaFJXlhwYbrSm3kSkZg35hrUhBJXGg4d33KPI3O4FmHXfPNy3PnbyIdUnyQD9mS32h+b0j+VpzbTC9QNPAhaenNYSDS0Z/B8fAHj/CreRApjUL8Z2taFoIN9xkKuw3lKbvfte3hYxLeLzTCN8HwnW//7ongw61lUgoxj8EaPmEsPPAiqgW+J14CPFjPiGuGlXgvtr1FuQeeDvW5evxtxZjsgO3/4O5wzD5ZEEpc8oZBo1APg0oTWB/4uFpGs3bskAGL+8R/aX8w1Xm6b5pNVBDB1/0jgeL3yZNZLrKRoz6gbhfrD78hwGeYgexszpMGFv/c/Q28QG550Q3+EFm2o7c3vEUOH+Kq1yPjSli2+nNq5BPRQSALYe5PKdVCQWlyFnz9auYwCwW+nhcjrSMI1wA9q2WrVxNR8SEy7e2ayPAbCKKZ2fWNLVCwzL9wvehvAOedEqLHjV94b0b7/0D+3bNkxOILpK/beaz5A80flRYOwmtLpyBLzkgwswomW4SydEpPoqDPMQkFqzi20DPsVqM72IUBhu55LnmxzW852nc7NlT4WNi3NWp0+e0JhVESe9VdB/62AVhFXBc+Fetr8NXNqudpvJnZTZwswGqF8kJDAt+p+5+kcm5wTs3O/CWfwQZa6Y5Epf+ZZMizs+jVcohYaBHv3X/y0+/EKdnPenoDIO18kH1Qda/55/d51TL6g22UV/Fjc1jqzHjztQdtU30l0i7Vhb+Drik8qFobAHnmDvDHe3PIEhCMozRNFy/dHXFc9PSqDxryRaqtoPRiffEgVgC/2phepD3+Ac81QfnGKGydS9Ee6x9qANmgO6f+QksBLTkvhl7YVj75Wp9EoEVkumw9twzC4Lf9lmcPqXNQLjmsP1rFyU8mKRcsYf66zDq2QuKnasS1CvNucZ7AAT2dd2FmGFNcgVj2WmTRzT84J7vX9TH42QtH6bqeX+kask7Gq1nCe5tLDl9kk2pwLu+YTBL8djEAwg10A7gwVsrHDtdRpHZ+7m+Mkh0M+AOZidUKHfNt+7l3VhCyy55IGHXiR/pJu//+Mv7nty803XW5eEYruzf7M57iKEynL7s9udilo6h8lLjgEv6UiJ4gXUV0z3ontry5/0uQguiu91UNT2IrJ/6BY/usIufjE9lC7GwXeszoe6xPjlLOj8BaO06suNg8r5JsMErDJYj6M/Doyy6l2kKahKG46/7nCVN1LXRxi1+oJ/+Rp/Zt8mOFo4tY6FTeIAsw+A1V4aXtsoKE+NPf/aeYuidMRD2DwtpWb7aGfZ0CpdXeBRqah24MyyM24JHGiVFTx6G4LGov84JRJVo7fO54+gMUuc0ZrbZBSuGCGut/k3GJPz+tm8aUXVaKzULkOHAIvPwSYkem8N/kads6xe/fpy2j/XCpMvhAkSPXoTCaPZGE/dbf5oLq3Z5o5QTergxySbnN0ahWW1shNyvvkWxXOuBnuzzuLMAj4l00k88hP3H2QFCaNe+wNJWJiXJaHKUm/l7nJs3L2HRR7/e83cKdzSY01o+RderlRJhMny04Y9aukC9SZsp6o6E5OISJpooI/+IZyvkNPygZPkMLjkSPfOICzlWXxe3jyHFNDnPWmP8xWOKm37PU/NeoRmlucB7Z0M095HQfJPzvLdhlt4tpzrg7D95D1wAdZ4Lh8i9Mb48AhGEK1jceIUWQd7N0Q4WSCc3AmVf+dp8YFV7TfinaY9/ccWlH1j80pfTEjWzLrzu7/3cJpGQ+EX2b9duiU6gfdqevWNbdI7PlCCXRv4NcBNT+8WEfybmi0F/wPPe6HMg9LzzN65KBBtZRd3b6h71YH3P7+mqXFfRL1Muaxjb1VfEz+/UGUQIR+klZ9u7UUh/qv3W/BAfb1xGuEYB1wM5idzjHQz3wQ+nhhNLCkn+w9cvI8WfRuGQTKJ+u/f0VN+kPSeHUygixwh2Y/PypnhCemaZbT+zNgIOGNekY934V3CjzRfn+H38Q1jPuP/612YAPsUIqayRXgJPm2bcoh3Zudiig5zl/bXt8LJmxM3aUQI+OGc5e3nRLNYs8DJNLrS/sGhyAvg1yYhbtWTjcCcArz3AczJx3WVVzeL/k//EwW+ZPeWTK800Wf50MnnnemMyybd7p3moq74t1u7HnU5+NnBEO35DECwjw36OIbG19RYjxuu5jwpMvmgtWzuqkU5GawIYgMnEz1sgOemF3kdnsaXtyb9sFjSgmtBA2DchiofnJFfCck8g+PE0UjiPT/zpIdMF+yVfNQpjC6yStwUWtzLkfGahD+19KYCr6vQwR39rLsUkwPt2P/6f834kCRPxwBWOj9DVocMLy8//7mGhy4y8nSfwzUsac0Gu3MmdRjQgAAAD5jNvaYm37VEUnHsB99Tm7Mxhk/9j2hkdc7sy5ngdKiGpsgxd4AM1VADv5eGWWQzzXyup5Fg6mb8v2GnvaACm5mTA+A8NzWrIr/PP4oo/Ht/R8TC27Sfx9c7QQSgf4F4pdtPc8uk+pKUDZf1+H/AwxUk5OKVHLBDnf3k49o42YJ/thJmX2sotbLcI4VNh3AI0Z4kKyqV7YLX8KLdE37T8U7Vyf7RCHfLNtZJw+IKvoUQZFC22cODlNeg4DmoAejo8ij6StEsQTraKhGQ3JP588bEi8LqIX0mPpzzAi+7lHlwl6F0MJBr90hRXks6P5spjzmCCYroG+8NWGog0nI8o7Aq6sYFxAS1wT+mfCyfv2Pk4hilijEGOE/L3w5boQPXq37nhfWR2e1sgAiiFy4NxA10sMCfuduIYtvRjWMJ67Hz+XvEDGVUpiU5FmkpKVJjxugppt5Koje4bjaJ50pUkgr0Q8EvN0lpvh2skK2zmHKrx8cBGkjWlLDegClibN1sUohXAsaZrgK2nzM/BqIElyIBR63jwV/+hl14qhdbcwFh90Aj640522v2g7AAAAAA="></span><span><b>豬場地圖查核</b><small>雙圖層人工判讀 · V3.3.22</small></span></div>
   <div class="topsearch"><input id="search" type="search" placeholder="搜尋豬場名稱、地址、鄉鎮、舊版ID…" autocomplete="off"><span>⌕</span></div>
-  <div class="head-actions"><button id="cloudLoginQuick" class="login-quick" type="button" aria-label="使用 Google 帳號登入">Google 登入</button><button id="headATIS" class="quiet">↗ ATIS 航照</button><button id="cloudOpen" class="quiet" title="共用場址同步與多人修改">☁ 共同編輯</button><button id="saveNow" title="寫入並讀回確認" class="quiet">✓ 立即儲存</button><button id="dataHealthOpen" title="測試本機資料儲存並查看安全副本" class="quiet">資料健檢</button><button id="backupTop" class="primary">↓ 備份</button></div>
+  <div class="head-actions"><button id="helpOpenTop" type="button" class="help-entry" aria-label="開啟系統使用說明" title="新手教學與使用操作說明">❔ 使用說明</button><button id="cloudLoginQuick" class="login-quick" type="button" aria-label="使用 Google 帳號登入">Google 登入</button><button id="headATIS" class="quiet">↗ ATIS 航照</button><button id="cloudOpen" class="quiet" title="共用場址同步與多人修改">☁ 共同編輯</button><button id="saveNow" title="寫入並讀回確認" class="quiet">✓ 立即儲存</button><button id="dataHealthOpen" title="測試本機資料儲存並查看安全副本" class="quiet">資料健檢</button><button id="backupTop" class="primary">↓ 備份</button></div>
 </header>
 <div id="cloudStatus" class="cloud-status" role="status">共同編輯連線準備中…</div>
 <div class="metrics" aria-label="資料統計">
@@ -62,6 +65,7 @@
       </div>
     </div>
     <div id="extraTools" class="extra-tools" hidden aria-label="進階地圖工具">
+<button id="helpOpenMore" class="tab" type="button">❔ 系統使用說明</button>
       <button id="installPwa" class="tab" type="button" title="將豬場查核加到手機、平板或電腦主畫面">▣ 安裝 APP</button>
       <button id="toolPoly" data-tool="poly" class="tab" type="button">⬡ 圈選場區</button>
       <button id="inspectCenter" class="tab" type="button">⌖ 查核地圖中心</button>
@@ -133,11 +137,11 @@
        <button type="button" id="f03MatchExport">↓ 匯出 CSV</button>
       </div>
       <div class="match-list" id="f03MatchList" role="list"></div>
-      <div class="match-foot" id="f03MatchFoot">資料來源：使用者提供的民國112年 F03 GeoJSON；不是較新年度、也不是最新豬場登記。點選紀錄可定位並開啟原有豬場檔案。</div>
+      <div class="match-foot" id="f03MatchFoot">資料來源：使用者提供的民國112年 F03 GeoJSON；不是較新年度、也不是最新豬場登記。點選紀錄僅定位；如需詳細資訊請點地圖名稱或「資訊」按鈕。</div>
     </section>
     <div class="maps both" id="maps">
       <section class="map-pane" id="surveyPane"><div class="map-label"><b>01 畜牧使用盤查</b><small>國土測繪底圖 + F03 橘色圖層</small><small class="map-source-status" id="surveySourceStatus" role="status">正在載入底圖…</small></div><div id="surveyMap" class="map"></div><div class="aim-reticle" aria-hidden="true"></div></section>
-      <section class="map-pane" id="aerialPane"><div class="map-label"><b>02 正射影像比對</b><small>NLSC PHOTO2 · ATIS 開啟高清</small><small class="map-source-status" id="aerialSourceStatus" role="status">正在載入影像…</small></div><div id="aerialMap" class="map"></div><div class="aim-reticle" aria-hidden="true"></div><div id="selectedFarmCard" class="farm-selection-card" role="status" hidden><span aria-hidden="true">🎯</span><span class="selected-farm-copy"><strong id="selectedFarmName">選定豬場</strong><small id="selectedFarmCoordinates">已定位</small></span><button id="selectedFarmEdit" type="button" title="開啟選定豬場資料">編輯</button></div></section>
+      <section class="map-pane" id="aerialPane"><div class="map-label"><b>02 正射影像比對</b><small>NLSC PHOTO2 · ATIS 開啟高清</small><small class="map-source-status" id="aerialSourceStatus" role="status">正在載入影像…</small></div><div id="aerialMap" class="map"></div><div class="aim-reticle" aria-hidden="true"></div><div id="selectedFarmCard" class="farm-selection-card" role="status" hidden><span aria-hidden="true">🎯</span><span class="selected-farm-copy"><button id="selectedFarmName" type="button" class="selected-farm-name" title="點擊名稱查看豬場詳細資料">選定豬場</button><small id="selectedFarmCoordinates">已定位</small></span><button id="selectedFarmEdit" type="button" title="查看選定豬場資訊">ⓘ 資訊</button></div></section>
     </div>
     <div id="mobileAimTools" class="mobile-aim-tools" aria-label="手機精準查核" hidden>
       <button type="button" id="mobileAimMain" class="aim-main">⌖ 進入準星查核</button>
@@ -209,6 +213,7 @@
   <button id="mobileFarmsOpen" type="button" aria-controls="sidebar" aria-expanded="false"><span aria-hidden="true">☷</span><small>豬場清單</small></button>
   <button id="mobileFabToggle" type="button" aria-controls="mobileActionMenu" aria-expanded="false"><span aria-hidden="true">⌖</span><small>查核操作</small></button>
   <button id="mobileAuthToggle" type="button"><span aria-hidden="true">♙</span><small id="mobileAuthLabel">登入</small></button>
+<button id="helpOpenMobile" type="button" aria-label="開啟系統使用說明"><span aria-hidden="true">❔</span><small>使用說明</small></button>
 </nav>
 <div id="mobileActionMenu" class="mobile-action-menu" hidden role="group" aria-label="地圖操作選單">
   <button id="mobileActionBrowse" type="button">☞ 返回地圖瀏覽</button>
@@ -238,6 +243,20 @@
   <h3>最近的共同編輯紀錄</h3><div id="cloudProposals" class="cloud-proposal-list"></div>
  </section>
 </div>
+<div id="farmInfoBackdrop" class="backdrop farm-info-backdrop" hidden></div>
+<section id="farmInfoDialog" class="farm-info-dialog" role="dialog" aria-modal="true" aria-labelledby="farmInfoName" hidden>
+ <header class="farm-info-header"><div><small id="farmInfoId">紀錄資訊</small><h2 id="farmInfoName">豬場詳細資訊</h2></div><button type="button" id="farmInfoClose" aria-label="關閉豬場資訊">✕</button></header>
+ <div class="farm-info-body">
+  <div class="farm-info-grid"><div><small>縣市／鄉鎮</small><strong id="farmInfoLocation">—</strong></div><div><small>人工判定類別</small><strong id="farmInfoCategory">—</strong></div></div>
+  <div><small>場址／地址</small><p id="farmInfoAddress">—</p></div>
+  <div><small>經緯度（WGS84）</small><p id="farmInfoCoordinates">—</p></div>
+  <div><small>目前紀錄狀態</small><p id="farmInfoReview">—</p></div>
+  <div><small>資料來源</small><p id="farmInfoSource">—</p></div>
+  <div><small>備註</small><p id="farmInfoNote">—</p></div>
+  <p class="farm-info-caution">資料僅供人工查核參考，既有核定標記不等於官方即時畜牧場登記。</p>
+ </div>
+ <footer class="farm-info-footer"><button type="button" id="farmInfoEdit" class="primary">✎ 編輯／提出更正</button><button type="button" id="farmInfoDismiss">返回地圖</button></footer>
+</section>
 <div id="editorBackdrop" class="backdrop" hidden></div>
 <section id="editor" class="editor" aria-label="豬場資料編輯" hidden>
   <div class="editor-head"><div><small id="editID">—</small><h2 id="editTitle">豬場資料</h2></div><button id="closeEditor" aria-label="關閉編輯視窗">✕</button></div>
@@ -270,6 +289,67 @@
   <textarea id="dataHealthReport" spellcheck="false" readonly rows="10" aria-label="資料健檢報告"></textarea>
   <div class="data-health-actions"><button id="dataHealthRun" type="button">重新檢查</button><button id="dataHealthCopy" type="button">複製報告</button><button id="downloadSafety" type="button">下載安全副本</button><button id="restoreSafety" type="button" class="danger">還原安全副本</button></div>
   <p class="subtle">安全副本是本次開啟頁面前的既有有效快照，並不是逐次修改歷史。還原前請先下載目前 JSON 備份。若另一分頁已修改資料，請先備份再重新開啟。</p>
+</section>
+
+
+<!-- V3.3.22: 公開使用者說明。僅讀取操作，無任何資料庫寫入。 -->
+<div id="helpBackdrop" class="help-backdrop" hidden></div>
+<section id="helpDialog" class="help-dialog" role="dialog" aria-modal="true" aria-labelledby="helpTitle" aria-describedby="helpSubtitle" hidden tabindex="-1">
+ <header class="help-header">
+  <div class="help-heading"><span class="help-symbol" aria-hidden="true">🐷</span><div><small>豬場地圖查核 · 新手也能快速操作</small><h2 id="helpTitle">系統使用說明</h2><p id="helpSubtitle">查詢不用登入；提交地址更正才需要 Google 帳號。</p></div></div>
+  <button id="helpClose" class="help-close" type="button" aria-label="關閉使用說明">✕</button>
+ </header>
+ <nav class="help-tabs" role="tablist" aria-label="使用說明主題">
+  <button type="button" role="tab" id="helpTabQuick" aria-selected="true" aria-controls="helpPageQuick" data-help-tab="quick">① 快速上手</button>
+  <button type="button" role="tab" id="helpTabMap" aria-selected="false" aria-controls="helpPageMap" data-help-tab="map">② 地圖判讀</button>
+  <button type="button" role="tab" id="helpTabEdit" aria-selected="false" aria-controls="helpPageEdit" data-help-tab="edit">③ 提交更正</button>
+  <button type="button" role="tab" id="helpTabFaq" aria-selected="false" aria-controls="helpPageFaq" data-help-tab="faq">④ 管理員／問題</button>
+ </nav>
+ <div class="help-scroll" id="helpScroll">
+  <div class="help-page" id="helpPageQuick" role="tabpanel" aria-labelledby="helpTabQuick">
+   <div class="help-intro"><strong>第一次使用，照這 4 步就可以</strong><p>你可以先免費查詢豬場位置；若發現地址或座標不正確，再登入提出更正。</p></div>
+   <ol class="help-steps">
+    <li><span class="help-step-no">1</span><div><strong>搜尋豬場、選擇縣市</strong><p>在上方搜尋豬場名稱、地址或鄉鎮，也可以從豬場清單選縣市／鄉鎮。手機請先按底部「豬場清單」。</p></div></li>
+    <li><span class="help-step-no">2</span><div><strong>點一下，地圖自動定位</strong><p>點清單中的豬場或地圖標記，左右地圖會移到該位置，顯示醒目定位圈；<b>此時不會跳出詳細資料</b>。</p></div></li>
+    <li><span class="help-step-no">3</span><div><strong>點牧場名稱或「ⓘ 資訊」</strong><p>想查看地址、座標與紀錄狀態，再點地圖上的牧場名稱或下方資訊按鈕。</p></div></li>
+    <li><span class="help-step-no">4</span><div><strong>資料有誤，再登入提交</strong><p>Google 登入後選擇「編輯／提出更正」，填寫正確地址或座標與原因，提交管理員審核。</p></div></li>
+   </ol>
+   <div class="help-action-row"><button type="button" id="helpTrySearch" class="help-primary">開始搜尋豬場</button><button type="button" id="helpTryList">開啟豬場清單</button></div>
+  </div>
+  <div class="help-page" id="helpPageMap" role="tabpanel" aria-labelledby="helpTabMap" hidden>
+   <h3>如何使用兩張地圖？</h3>
+   <div class="help-mini-grid">
+    <div><b>雙圖對照</b><p>左邊是電子地圖，右邊是正射影像，適合核對道路、建物與豬場位置。</p></div>
+    <div><b>盤查圖／正射影像</b><p>單獨放大其中一張圖；手機預設以較大地圖優先。</p></div>
+   </div>
+   <h3>地圖顏色代表什麼？</h3>
+   <div class="help-legend"><span><i style="background:#f19b36"></i> 橘色：F03 畜牧使用土地</span><span><i style="background:#4d85b9"></i> 藍色點：既有豬場定位標記</span><span><i style="background:#e44c37"></i> 紅色靶心：目前選取的位置</span></div>
+   <p class="help-warning">注意：<b>F03 畜牧使用地塊不一定是豬場</b>；人工「全部核定」標記也不是官方最新營業或合法性認證。已內建的是民國112年雲林縣圖資，其他年度或縣市不一定都有完整橘色圖層。</p>
+   <h3>怎麼檢查新的畜牧使用地點？</h3>
+   <p>按「開始盤查」或「盤查工作台」進入人工查核。手機可從底部「查核操作」找到相關功能。只有在需要精確指定地圖中心時，才使用準星查核。</p>
+  </div>
+  <div class="help-page" id="helpPageEdit" role="tabpanel" aria-labelledby="helpTabEdit" hidden>
+   <h3>公開查閱、登入才能提出更正</h3>
+   <div class="help-roles"><div><strong>訪客（未登入）</strong><span>可以搜尋、定位、看資訊，不可以送出更正。</span></div><div><strong>Google 登入者</strong><span>可以提交名稱、地址、縣市、鄉鎮、座標等更正建議。</span></div><div><strong>管理員</strong><span>可以審核建議，通過後才更新全體看到的正式資料。</span></div></div>
+   <ol class="help-number-list"><li>找到豬場 → 點「ⓘ 資訊」。</li><li>點「編輯／提出更正」，如未登入先用 Google 帳號登入。</li><li>填寫更正內容及判斷依據，按「提交至共用資料庫」。</li><li>提交後進入待審清單；<b>管理員核准前，正式資料不會被覆蓋</b>。</li></ol>
+   <p class="help-warning">提交後只是建立待確認建議，不保證立即公開。系統目前沒有承諾以 Email 或手機推播通知審核結果。</p>
+   <div class="help-action-row"><button id="helpTryLogin" class="help-primary" type="button">Google 登入／查看共同編輯</button></div>
+  </div>
+  <div class="help-page" id="helpPageFaq" role="tabpanel" aria-labelledby="helpTabFaq" hidden>
+   <h3>管理員首次啟用</h3>
+   <p>先在 Firebase Authentication 啟用 Google 登入，並於 Firestore 的 <code>admins/{你的 UID}</code> 設定 <code>role = "admin"</code>。管理員登入後，確認雲端名冊為空，才執行「初始化／補齊315筆」。</p>
+   <p class="help-warning">初始化及審核是管理員專用操作。正式對外前應先完成 Firestore 規則與兩個帳號的跨裝置測試。</p>
+   <h3>常見問題</h3>
+   <details><summary>為什麼搜尋其他縣市可能沒有結果？</summary><p>目前內建的315筆初始紀錄來自雲林縣。系統可篩選台灣22縣市，但其他縣市尚需持續新增或匯入，0筆不代表當地沒有豬場。</p></details>
+   <details><summary>Firebase 顯示已連線，卻說資料庫沒有豬場？</summary><p>代表尚未完成正式場址初始化。請由管理員 Google 登入後確認權限，再按初始化315筆。一般訪客不應執行初始化。</p></details>
+   <details><summary>橘色區塊和豬場點位有什麼不同？</summary><p>橘色是農地資源盤查的「畜牧使用」圖資，不等於全部是豬場。藍色豬場點位是另一套人工整理資料，兩者不會自動互相認證。</p></details>
+   <details><summary>為什麼登入後提交的資料還沒有更新？</summary><p>地址、座標更正會先進入管理員待審清單。通過後正式資料才自動同步。若顯示權限不足或無法連線，請先確認 Firebase 登入與資料庫安全規則。</p></details>
+   <details><summary>哪些資料會自動同步到其他使用者？</summary><p>目前共用雲端重點是已核准的豬場名稱、縣市、鄉鎮、地址與座標，以及待審的更正建議。原有 F03 圖資和部分人工查核／核定紀錄仍保存在本機，不能假設已全部跨裝置同步。</p></details>
+   <details><summary>怎麼保留自己的查核資料？</summary><p>使用頂部「備份」或清單底部的豬場資料匯出功能，定期保存 JSON 等檔案。尚未同步到 Firebase 的本機人工查核紀錄，換手機或清除網站資料後可能遺失。</p></details>
+   <details><summary>手機畫面不一樣、或更新後還看到舊版？</summary><p>先在 Safari／Chrome 網頁版本確認新版本號；若已安裝 PWA，重新開啟應用程式。更新前先備份尚未同步的本機人工查核資料，不要直接清除瀏覽器網站資料。</p></details>
+  </div>
+ </div>
+ <footer class="help-footer"><span id="helpFootHint">需要時可隨時重新打開使用說明。</span><button id="helpDone" type="button" class="help-primary">了解，返回地圖</button></footer>
 </section>
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
