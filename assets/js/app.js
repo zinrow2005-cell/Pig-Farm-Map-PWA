@@ -581,7 +581,7 @@ function openRecord(uid,pan=true){const r=STATE.records.find(x=>x.uid===uid);if(
  $('originalInfo').textContent=`舊狀態：${r.originalStatus||'無'}；舊資料位置審核：${r.legacy?.mapLocationReview||'無'}；舊資料最終核定：${r.legacy?.finalApproval||'無'}。${polygon?'多邊形不可直接用經緯度欄位修改外框。':''}`;
  $('editor').hidden=false;$('editorBackdrop').hidden=false;}
 function closeEditor(){$('editor').hidden=true;$('editorBackdrop').hidden=true;}
-function createPointAt(lat,lng,editExisting=null){if(window.PigCommunity?.enabled)return notice('公開協作模式不允許建立本機未同步場址；請先在清單選擇既有紀錄並提交共用修改。');if(editExisting){const r=STATE.records.find(x=>x.uid===editExisting);if(!r)return;r.geometry={type:'Point',coordinates:[lng,lat]};r.updatedAt=new Date().toISOString();r.review='pending';notice('已重新定位，請再次核對及儲存。');persist();renderList();openRecord(r.uid,false);return;}
+function createPointAt(lat,lng,editExisting=null){if(window.PigCommunity?.enabled){if(editExisting){window.PigCommunity.edit(editExisting);return notice('請在共用編輯視窗中更新原豬場的經緯度。');}window.PigCommunity.beginNew(lat,lng);return;}if(editExisting){const r=STATE.records.find(x=>x.uid===editExisting);if(!r)return;r.geometry={type:'Point',coordinates:[lng,lat]};r.updatedAt=new Date().toISOString();r.review='pending';notice('已重新定位，請再次核對及儲存。');persist();renderList();openRecord(r.uid,false);return;}
  const r=C.normalize({uid:newId(),geometry:{type:'Point',coordinates:[lng,lat]},name:'未命名地點',category:'unchecked',review:'pending',county:$('filterCounty').value==='all'?'雲林縣':$('filterCounty').value,town:'',source:'人工地圖點選',evidence:'待比對 ATIS 影像',createdAt:new Date().toISOString()});STATE.records.push(r);updateTownOptions();renderStats();persist();renderList();openRecord(r.uid,false);}
 function newId(){let id;do{id='manual-'+Date.now()+'-'+Math.random().toString(36).slice(2,7);}while(STATE.records.some(r=>r.uid===id));return id;}
 function saveEditor(evt){evt.preventDefault();if(window.PigCommunity?.enabled){const uid=STATE.selected;closeEditor();window.PigCommunity.edit(uid);notice('公開協作模式：場址更正請送到雲端共用資料庫；不會寫入個人本機後假裝同步。');return;}const r=STATE.records.find(x=>x.uid===STATE.selected);if(!r)return;
@@ -1961,7 +1961,7 @@ function initF03MatchPanel(){
 function applyCloudFarms(rows){
  if(!Array.isArray(rows)||!rows.length)return;
  let changed=false;
- for(const cloud of rows){const r=STATE.records.find(x=>x.uid===cloud.uid);if(!r)continue;
+ for(const cloud of rows){let r=STATE.records.find(x=>x.uid===cloud.uid);if(!r){const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;r=C.normalize({uid:cloud.uid,name:cloud.name||'未命名豬場',county:cloud.county||'雲林縣',town:cloud.town||'',address:cloud.address||'',geometry:loc,category:'pig',review:'pending',source:'管理員雲端新增',createdAt:new Date().toISOString()});STATE.records.push(r);changed=true;}
   const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;
   const prior=C.center(r),now=loc?[loc.coordinates[1],loc.coordinates[0]]:null;
   if(r.name!==cloud.name||r.county!==cloud.county||r.town!==cloud.town||r.address!==cloud.address||JSON.stringify(prior)!==JSON.stringify(now)){

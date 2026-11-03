@@ -361,3 +361,6 @@
 .stat-explorer-scrim{z-index:30000!important}
 .stat-explorer{z-index:30001!important;overscroll-behavior:contain}
 .stat-explorer[hidden],.stat-explorer-scrim[hidden]{display:none!important}
+
+/* V3.3.28 管理者新增豬場 */
+.cloud-create-entry{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px;background:#eaf6ee;border:1px solid #b7d6c1;border-radius:12px}.cloud-create-entry button{font-weight:700}.cloud-dialog #cloudNewForm{padding:12px;margin:10px 0;border:1px solid #a4c4ad;border-radius:12px;background:#fafefa}.cloud-dialog #cloudNewForm[hidden]{display:none}

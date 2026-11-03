@@ -7,7 +7,7 @@ const conf=root.PIG_FIREBASE_CONFIG||{};
 const configured=!!(conf.apiKey&&conf.projectId&&conf.appId&&conf.authDomain&&!String(conf.apiKey).includes('請填'));
 let auth=null,db=null,A=null,F=null,user=null,admin=false,hook=null,started=false;
 let liveFarms=new Map(),proposals=[],activeFarm=null,unsubFarms=null,unsubProposals=null,loggedInSeq=0;
-let farmsFromCache=true,seedBusy=false;
+let farmsFromCache=true,seedBusy=false,newPoint=null,newBusy=false;
 function status(msg,bad=false){const el=$('cloudStatus');if(el){el.textContent=msg;el.dataset.error=bad?'yes':'no';}const btn=$('cloudOpen');if(btn)btn.title=msg;}
 function err(e){const code=String(e?.code||''); if(code.includes('permission-denied'))return '沒有資料庫存取權限：請確認 Firestore 規則已發布、Google 登入已啟用及管理員 UID 設定';
  if(code.includes('auth/unauthorized-domain'))return '目前網站網域尚未加入 Firebase Authentication 已授權網域';
@@ -24,6 +24,7 @@ function renderUser(){
  const quick=$('cloudLoginQuick');if(quick){quick.textContent=user?(admin?'管理員 ✓':'我的帳號 ✓'):'Google 登入';quick.title=user?`已登入：${user.email||label}，點此開啟共同編輯`:'使用 Google 帳號登入';quick.setAttribute('aria-label',quick.title);}
  const mobileLabel=$('mobileAuthLabel');if(mobileLabel)mobileLabel.textContent=user?(admin?'管理員':'帳號'):'登入';
  if(who)who.textContent=user?`已登入 ${user.displayName||user.email||'Google 使用者'}${admin?' · 管理者':''}`:'尚未登入：可以查看正式場址；修改須 Google 登入';
+ const create=$('cloudNewOpen');if(create){create.hidden=!admin||!db;create.disabled=!admin||!db;}
  if(sign)sign.hidden=!!user;if(out)out.hidden=!user;
  if(submit)submit.disabled=!user||!db;
  if(seed){seed.hidden=!admin||!db;seed.disabled=seedBusy;seed.textContent=seedBusy?'正在建立雲端資料…':'初始化／補齊315筆初始豬場（只新增缺漏）';}
@@ -46,6 +47,41 @@ function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到�
  $('cloudLat').value=cloud.lat??(geo?geo[1]:'');$('cloudLng').value=cloud.lng??(geo?geo[0]:'');
  $('cloudNote').value='';$('cloudEditForm').hidden=false;
  if(!user)status('請先使用 Google 登入，再提交這筆修改建議',true);
+}
+function beginNew(lat=null,lng=null){
+ open();if(!admin||!db||!user){status('目前無法新增正式豬場：必須完成 Google 登入、確認管理員權限及 Firestore 連線。',true);return false;}
+ const hasCoords=lat!==null&&lng!==null;
+ newPoint=hasCoords?{lat:Number(lat),lng:Number(lng)}:{};
+ $('cloudEditForm').hidden=true;$('cloudNewForm').hidden=false;
+ $('cloudNewName').value='';$('cloudNewCounty').value='雲林縣';$('cloudNewTown').value='';$('cloudNewAddress').value='';
+ $('cloudNewLat').value=hasCoords?Number(lat).toFixed(8):'';
+ $('cloudNewLng').value=hasCoords?Number(lng).toFixed(8):'';
+
+ status(hasCoords?'已從地圖取得座標；請填寫豬場名稱、鄉鎮後儲存。':'請填寫豬場資料與 WGS84 經緯度，再儲存至雲端。');
+ $('cloudNewName').focus();return true;
+}
+async function createFarm(event){
+ event.preventDefault();if(!admin||!db||!user){status('無管理員新增權限，無法儲存。',true);return;}
+ if(newBusy)return;
+ const name=clean($('cloudNewName').value,150),county=clean($('cloudNewCounty').value,40),town=clean($('cloudNewTown').value,40),address=clean($('cloudNewAddress').value,220);
+ const latText=$('cloudNewLat').value.trim(),lngText=$('cloudNewLng').value.trim();
+ if(!name||!county||!town){status('請完整填寫豬場名稱、縣市及鄉鎮。',true);return;}
+ if(!latText||!lngText){status('新增地圖標記必須有經緯度。請使用「＋ 標記點」在地圖選位置，或填入正確座標。',true);return;}
+ const lat=Number(latText),lng=Number(lngText);
+ if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<21||lat>27||lng<118||lng>123){status('經緯度不在台灣有效範圍，請檢查。',true);return;}
+ if([...liveFarms.values()].some(f=>f.lat!=null&&f.lng!=null&&Math.abs(Number(f.lat)-lat)<0.00001&&Math.abs(Number(f.lng)-lng)<0.00001)){
+  if(!confirm('已有豬場紀錄位於幾乎相同的位置。確定要新增不同豬場，避免重複建檔？'))return;
+ }
+ if(!confirm(`確定新增「${name}」至正式雲端豬場清單？\n位置：${county}${town} ${address}\n座標：${lat}, ${lng}`))return;
+ newBusy=true;$('cloudNewSubmit').disabled=true;status('正在寫入 Firestore，尚未完成儲存…');
+ try{
+  const id='manual-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);
+  const data={uid:id,name,county,town,address,lat,lng,version:1,approvedSuggestionId:null,updatedAt:F.serverTimestamp()};
+  await F.setDoc(F.doc(db,'farms',id),data);
+  $('cloudNewForm').hidden=true;newPoint=null;
+  status(`已成功新增「${name}」至 Firestore（ID：${id}）。地圖清單將即時更新。`);
+ }catch(e){status('新增失敗：'+err(e)+'。請先檢查 Firebase /firestore.rules 是否已部署最新版；資料未確認寫入。',true);}
+ finally{newBusy=false;$('cloudNewSubmit').disabled=false;renderUser();}
 }
 function publicRows(){return [...liveFarms.values()];}
 function syncIndicator(){if(!db)return;const count=liveFarms.size;
@@ -136,6 +172,9 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudSignIn')?.addEventListener('click',signIn);$('cloudSignOut')?.addEventListener('click',signOut);
  $('cloudRefresh')?.addEventListener('click',refresh);$('cloudSeed')?.addEventListener('click',seed);
  $('cloudEditForm')?.addEventListener('submit',submit);
+ $('cloudNewOpen')?.addEventListener('click',()=>beginNew());
+ $('cloudNewForm')?.addEventListener('submit',createFarm);
+ $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;newPoint=null;});
  $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve);});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cloudPanel').hidden)close();});
  if(!configured){status('尚未設定 Google Firebase：此版本目前仍是本機模式，沒有多人同步',true);renderUser();return;}
@@ -149,5 +188,5 @@ async function start(options){if(started)return;started=true;hook=options;
  subscribeFarms();A.onAuthStateChanged(auth,u=>{onUserChanged(u).catch(e=>status(err(e),true));},e=>status('Firebase Authentication 發生問題：'+err(e),true));
  }catch(e){status('Firebase 啟動失敗：'+err(e)+'。沒有啟用共用同步。',true);}
 }
-root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,pull:refresh};
+root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},start,open,edit,beginNew,pull:refresh};
 })(window);
