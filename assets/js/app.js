@@ -1070,7 +1070,7 @@ function renderAuditAreas(){
  for(const group of STATE.auditAreaGroups)group.clearLayers();
  let count=0;
  for(const a of Object.values(STATE.audits)){
-  if(!['official','tile','offline'].includes(a.source)||+a.year!==STATE.year||!STATE.showAuditAreas)continue;
+  if(a.promotedToUid||!['official','tile','offline'].includes(a.source)||+a.year!==STATE.year||!STATE.showAuditAreas)continue;
   // Non-farms remain in review history, but do not clutter regional map views.
   if(a.decision==='other' && STATE.maps?.[0]?.getZoom()<13)continue;
   const g=validAuditGeo(a.geometry);if(!g)continue;
@@ -1170,16 +1170,40 @@ function renderInspectPreview(){
  }
 }
 
+/* V3.3.44: Keep review history but replace its provisional map marker with the
+ * approved farm marker. Match by parcel key (or an explicit record link), never
+ * by proximity alone: neighboring farms can occupy the same parcel area. */
+function promoteAuditToFarm(parcelKey,cloudUid){
+ if(!cloudUid)return false;
+ let changed=false;
+ for(const [key,a] of Object.entries(STATE.audits)){
+  if(!['pig','maybe'].includes(a.decision))continue;
+  if(!(parcelKey&&key===parcelKey) && a.recordUid!==cloudUid && a.promotedToUid!==cloudUid)continue;
+  const oldProvisional=a.newRecordUid;
+  if(a.promotedToUid!==cloudUid||a.recordUid!==cloudUid||oldProvisional){
+   STATE.audits[key]={...a,promotedToUid:cloudUid,recordUid:cloudUid,newRecordUid:null,linkedBy:'cloud-approved'};
+   changed=true;
+  }
+  if(oldProvisional&&oldProvisional!==cloudUid &&
+     !Object.values(STATE.audits).some(x=>x.recordUid===oldProvisional||x.newRecordUid===oldProvisional)){
+   const row=STATE.records.find(r=>r.uid===oldProvisional);
+   if(row&&row.review==='pending'&&!CLOUD_DELETED_IDS.has(oldProvisional)){
+    STATE.records=STATE.records.filter(r=>r.uid!==oldProvisional);changed=true;
+   }
+  }
+ }
+ return changed;
+}
 function renderAuditHistory(){const target=$('auditHistoryList');if(!target)return;
  const all=Object.values(STATE.audits).sort((a,b)=>(b.checkedAt||'').localeCompare(a.checkedAt||''));
- target.innerHTML=all.length?all.map(a=>`<div class="audit-history-entry"><button type="button" class="audit-history-open" data-audit-key="${html(a.key)}"><b>${html(auditLabel(a))}</b>${a.recordUid&&STATE.records.some(r=>r.uid===a.recordUid)?` · <span class="subtle">關聯 ${html(STATE.records.find(r=>r.uid===a.recordUid).name)}</span>`:''}　${a.source==='manual'?'人工位置':((a.source==='tile'?'圖磚局部輪廓':('官方地塊 #'+html(a.objectId)))+(validAuditGeo(a.geometry)?' · 已有輪廓':' · 僅座標'))}<small>${Number(a.lat).toFixed(6)}, ${Number(a.lng).toFixed(6)} · ${html((a.checkedAt||'').slice(0,10))}</small></button><button type="button" class="audit-history-delete" data-delete-local-audit="${html(a.key)}" aria-label="刪除這台裝置的 ${html(auditLabel(a))} 查核標記">刪除本機標記</button></div>`).join(''):'<p class="subtle" style="padding:8px">尚無本機查核記錄。點選橘色地塊，或以人工方式標記已查的位置。</p>';
+ target.innerHTML=all.length?all.map(a=>`<div class="audit-history-entry"><button type="button" class="audit-history-open" data-audit-key="${html(a.key)}"><b>${html(auditLabel(a))}${a.promotedToUid?' · 已轉正式豬場':''}</b>${a.recordUid&&STATE.records.some(r=>r.uid===a.recordUid)?` · <span class="subtle">關聯 ${html(STATE.records.find(r=>r.uid===a.recordUid).name)}</span>`:''}　${a.source==='manual'?'人工位置':((a.source==='tile'?'圖磚局部輪廓':('官方地塊 #'+html(a.objectId)))+(validAuditGeo(a.geometry)?' · 已有輪廓':' · 僅座標'))}<small>${Number(a.lat).toFixed(6)}, ${Number(a.lng).toFixed(6)} · ${html((a.checkedAt||'').slice(0,10))}</small></button><button type="button" class="audit-history-delete" data-delete-local-audit="${html(a.key)}" aria-label="刪除這台裝置的 ${html(auditLabel(a))} 查核標記">刪除本機標記</button></div>`).join(''):'<p class="subtle" style="padding:8px">尚無本機查核記錄。點選橘色地塊，或以人工方式標記已查的位置。</p>';
 }
 
 function renderAuditPins(){if(!STATE.mapReady||!STATE.auditGroups?.length)return;
  for(const group of STATE.auditGroups)group.clearLayers();
  for(const a of Object.values(STATE.audits)){
   // 'other' is a decision about an area, not a farm marker. Its gray outline stays clickable nearby.
-  if(a.decision==='other'||+a.year!==STATE.year||!C.coord(Number(a.lat),Number(a.lng)))continue;
+  if(a.promotedToUid||a.decision==='other'||+a.year!==STATE.year||!C.coord(Number(a.lat),Number(a.lng)))continue;
   const status={pig:'豬',maybe:'？',other:'×',defer:'·'}[a.decision]||'·';
   for(let i=0;i<STATE.auditGroups.length;i++){const group=STATE.auditGroups[i], zoom=STATE.maps[i].getZoom();
    // At district-wide zoom, reduce clutter without erasing any saved review.
@@ -1338,7 +1362,34 @@ async function inspectAt(lat,lng,queueKey=null){setAuditSheetPeeking(false);if(S
   }catch(error){if(seq!==STATE.inspectSeq)return;$('auditState').textContent='官方地塊查詢與圖磚輪廓皆未成功。可以建立人工查核點；不會生成假的官方編號。';}
  }
 }
-async function saveAudit(decision,cloudResult=null){if(STATE.savingAudit)return false;if(blockedByOtherTab()){notice('另一分頁已有更新：請先備份，不要繼續判讀以免覆寫。');return false;}const parcel=STATE.inspectParcel,pos=STATE.inspectPoint;if(!parcel||!pos)return notice('請先取得官方編號，或點「人工查核記號」。');const chosen=$('auditNeighbors').value,now=new Date().toISOString();let uid='',generatedUid='';const queueKey=STATE.queueSelectedKey;
+async function saveAudit(decision,cloudResult=null){if(STATE.savingAudit)return false;if(blockedByOtherTab()){notice('另一分頁已有更新：請先備份，不要繼續判讀以免覆寫。');return false;}
+ // Successful cloud approval replaces the local judgment marker, not creates
+ // another dot. Keep history under the same parcel key for statistics/auditing.
+ if(cloudResult?.status==='approved'&&cloudResult.uid){
+  const parcel=STATE.inspectParcel,pos=STATE.inspectPoint;
+  if(!parcel?.key||!pos)return false;
+  const oldAudits={...STATE.audits},oldRecords=STATE.records.slice();
+  const old=STATE.audits[parcel.key]||{};
+  STATE.audits[parcel.key]={...old,key:parcel.key,objectId:parcel.objectId,
+   source:['manual','tile','offline'].includes(parcel.source)?parcel.source:'official',
+   year:parcel.year,lat:pos[0],lng:pos[1],decision,
+   geometry:parcel.source==='manual'?null:(validAuditGeo(parcel.geometry)||validAuditGeo(old.geometry)),
+   note:$('auditRemarks').value.trim(),checkedAt:new Date().toISOString(),
+   recordUid:cloudResult.uid,newRecordUid:old.newRecordUid||null,
+   promotedToUid:cloudResult.uid,linkedBy:'cloud-approved'};
+  promoteAuditToFarm(parcel.key,cloudResult.uid);
+  renderAuditPins();renderStats();renderList();renderQueue();renderZones();renderMarkers();
+  persist(true);const ok=await flushSave();
+  if(!ok){STATE.audits=oldAudits;STATE.records=oldRecords;
+   renderAuditPins();renderStats();renderList();renderQueue();renderZones();renderMarkers();
+   notice('正式豬場已寫入雲端，但本機標記轉換保存失敗；請備份後再同步。');return false;}
+  $('auditDecision').textContent='已轉成正式豬場標記，原人工判定標記已自動隱藏。';
+  $('auditSavingNote').textContent='✓ 已核定並完成標記轉換';
+  $('auditNeighbors').value=cloudResult.uid;updateAuditRemoveButton();
+  notice('正式豬場已建立，原人工判定標記已自動轉換，不必另行刪除。');
+  return true;
+ }
+const parcel=STATE.inspectParcel,pos=STATE.inspectPoint;if(!parcel||!pos)return notice('請先取得官方編號，或點「人工查核記號」。');const chosen=$('auditNeighbors').value,now=new Date().toISOString();let uid='',generatedUid='';const queueKey=STATE.queueSelectedKey;
  if(decision==='pig'||decision==='maybe'){
    if(cloudResult){uid=cloudResult.uid||'';}
    else if(chosen){const existing=STATE.records.find(x=>x.uid===chosen);if(!existing)return notice('選取的舊豬場不存在，請重新選擇。');const d=C.distance({geometry:{type:'Point',coordinates:[pos[1],pos[0]]}},existing);
@@ -2058,11 +2109,12 @@ function initF03MatchPanel(){
 /* V3.3.18 共用場址只覆蓋名稱、縣市、鄉鎮、地址和座標，不碰人工核定/查核資料。 */
 function applyCloudFarms(rows){
  if(!Array.isArray(rows))return;
- let changed=false;
+ let changed=false, auditChanged=false;
  for(const cloud of rows){if(CLOUD_DELETED_IDS.has(cloud.uid))continue;let r=STATE.records.find(x=>x.uid===cloud.uid);if(!r){const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;r=C.normalize({uid:cloud.uid,name:cloud.name||'未命名豬場',county:cloud.county||'雲林縣',town:cloud.town||'',address:cloud.address||'',geometry:loc,category:cloud.auditDecision==='maybe'?'maybe':'pig',review:'pending',source:'管理員雲端新增',createdAt:new Date().toISOString()});STATE.records.push(r);changed=true;}
   const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;
   if(['pig','maybe'].includes(cloud.auditDecision)&&r.category!==cloud.auditDecision){r.category=cloud.auditDecision;changed=true;}
   if(['pig','maybe'].includes(cloud.auditDecision)&&cloud.auditParcelKey&&r.review!=='approved'){r.review='approved';changed=true;}
+  if(['pig','maybe'].includes(cloud.auditDecision)&&promoteAuditToFarm(cloud.auditParcelKey||'',cloud.uid))auditChanged=true;
   const prior=C.center(r),now=loc?[loc.coordinates[1],loc.coordinates[0]]:null;
   if(r.name!==cloud.name||r.county!==cloud.county||r.town!==cloud.town||r.address!==cloud.address||JSON.stringify(prior)!==JSON.stringify(now)){
    Object.assign(r,{name:cloud.name||r.name,county:cloud.county||r.county,town:cloud.town||r.town,address:cloud.address??''});
@@ -2070,9 +2122,10 @@ function applyCloudFarms(rows){
    changed=true;
   }
  }
- if(changed){updateTownOptions();renderStats();renderList();if(STATE.mapReady){renderMarkers();renderAuditPins();}F03_MATCH.dirty=true;}
+ if(changed||auditChanged){updateTownOptions();renderStats();renderList();if(STATE.mapReady){renderMarkers();renderAuditPins();}F03_MATCH.dirty=true;}
+ if(auditChanged)persist();
 }
-function removeDeletedCloudFarms(ids){let changed=false;for(const id of ids||[]){CLOUD_DELETED_IDS.add(id);const before=STATE.records.length;STATE.records=STATE.records.filter(r=>r.uid!==id);if(STATE.records.length!==before)changed=true;for(const audit of Object.values(STATE.audits)){if(audit.recordUid===id){audit.recordUid='';changed=true;}if(audit.newRecordUid===id){audit.newRecordUid=null;changed=true;}}if(STATE.selected===id){STATE.selected=null;closeFarmDetails();}}if(changed){updateTownOptions();renderStats();renderList();renderMarkers();renderAuditPins();persist();}}
+function removeDeletedCloudFarms(ids){let changed=false;for(const id of ids||[]){CLOUD_DELETED_IDS.add(id);const before=STATE.records.length;STATE.records=STATE.records.filter(r=>r.uid!==id);if(STATE.records.length!==before)changed=true;for(const audit of Object.values(STATE.audits)){if(audit.recordUid===id){audit.recordUid='';changed=true;}if(audit.newRecordUid===id){audit.newRecordUid=null;changed=true;}if(audit.promotedToUid===id){delete audit.promotedToUid;changed=true;}}if(STATE.selected===id){STATE.selected=null;closeFarmDetails();}}if(changed){updateTownOptions();renderStats();renderList();renderMarkers();renderAuditPins();persist();}}
 async function init(){const f03Diag=$('f03Diag');if(f03Diag)f03Diag.addEventListener('click',()=>window.open('tools/f03-test.html','_blank','noopener'));if(PREVIEW_ENV){const box=$('previewNotice');if(box)box.hidden=false;}bind();setupCompactWorkbench();initF03MatchPanel();initStatExplorer();await initializeData();updateTownOptions();renderList();refreshWorkflowSummary();$('showF03').checked=STATE.showF03;$('f03Year').value=String(STATE.year);$('opacity').value=String(Math.round(STATE.opacity*100));$('opacityLabel').textContent=Math.round(STATE.opacity*100)+'%';$('showAuditAreas').checked=STATE.showAuditAreas;$('maps').className='maps '+STATE.view;document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===STATE.view));try{const savedMode=localStorage.getItem('pig-f03-source-mode-v337');if(['builtin','online','offline'].includes(savedMode))f03SourceMode=savedMode;}catch(e){}
   let bundledError='';try{
     const raw=window.PIG_F03_BUNDLED_TEXT;
