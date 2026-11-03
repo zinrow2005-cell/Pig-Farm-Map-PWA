@@ -743,7 +743,38 @@ function restartBaseMaps(backup=false){
  notice(backup?'已切換備援來源；如果仍無影像，請檢查網路連線。':'已重新嘗試官方電子地圖及 PHOTO2。');
 }
 
-function renderMarkers(){if(!STATE.mapReady)return;for(const group of STATE.markerGroups)group.clearLayers();for(const r of STATE.filtered){const p=C.center(r);if(!p)continue;const col=r.review==='approved'?'#147951':COLORS[r.category]||'#b88e4a';for(const group of STATE.markerGroups){let shape;if(r.geometry?.type==='Polygon')shape=L.polygon(r.geometry.coordinates[0].map(v=>[v[1],v[0]]),{color:col,weight:3,fillOpacity:.18,fillColor:col,bubblingMouseEvents:false});else shape=L.circleMarker(p,{radius:r.review==='approved'?8:6,weight:2,color:'#fff',fillColor:col,fillOpacity:.96,bubblingMouseEvents:false});shape.bindTooltip(html(r.name)+' · '+(r.review==='approved'?'全部核定':'待核'),{direction:'top'});shape.on('click',()=>{focusFarmRecord(r.uid,{move:false});});group.addLayer(shape);}}}
+/* V3.3.35: use DOM marker hit targets on touch layouts. Leaflet Canvas vector hit tests are unreliable on narrow mobile browsers. */
+function renderMarkers(){
+ if(!STATE.mapReady)return;
+ for(const group of STATE.markerGroups)group.clearLayers();
+ const touchLayout=window.matchMedia?.('(max-width:1024px)').matches===true;
+ for(const r of STATE.filtered){
+  const p=C.center(r);if(!p)continue;
+  const col=r.review==='approved'?'#147951':COLORS[r.category]||'#b88e4a';
+  for(const group of STATE.markerGroups){
+   if(touchLayout){
+    if(r.geometry?.type==='Polygon'){
+     const outline=L.polygon(r.geometry.coordinates[0].map(v=>[v[1],v[0]]),{color:col,weight:2,fillOpacity:.12,fillColor:col,interactive:false});
+     group.addLayer(outline);
+    }
+    const marker=L.marker(p,{
+     pane:'farmTouchPane',keyboard:true,riseOnHover:false,
+     icon:L.divIcon({className:'farm-touch-icon',html:'<span class="farm-touch-dot" style="--farm-marker-color:'+col+'" aria-hidden="true"></span>',iconSize:[38,38],iconAnchor:[19,19]})
+    });
+    marker.bindTooltip(html(r.name)+' · '+(r.review==='approved'?'全部核定':'待核'),{direction:'top'});
+    marker.on('click',e=>{if(e?.originalEvent)L.DomEvent.stopPropagation(e.originalEvent);focusFarmRecord(r.uid,{move:false});});
+    marker.on('add',()=>{const el=marker.getElement();if(el){el.setAttribute('title',r.name||'豬場標記');el.setAttribute('aria-label','選取豬場：'+(r.name||'未命名'));}});
+    group.addLayer(marker);
+   }else{
+    let shape;
+    if(r.geometry?.type==='Polygon')shape=L.polygon(r.geometry.coordinates[0].map(v=>[v[1],v[0]]),{color:col,weight:3,fillOpacity:.18,fillColor:col,bubblingMouseEvents:false});
+    else shape=L.circleMarker(p,{radius:r.review==='approved'?8:6,weight:2,color:'#fff',fillColor:col,fillOpacity:.96,bubblingMouseEvents:false});
+    shape.bindTooltip(html(r.name)+' · '+(r.review==='approved'?'全部核定':'待核'),{direction:'top'});
+    shape.on('click',()=>focusFarmRecord(r.uid,{move:false}));group.addLayer(shape);
+   }
+  }
+ }
+}
 function connectMaps(from,to){if(STATE.linking||!STATE.mapReady)return;const a=from.getCenter(),b=to.getCenter();if(Math.abs(a.lat-b.lat)<.0000001&&Math.abs(a.lng-b.lng)<.0000001&&from.getZoom()===to.getZoom())return;STATE.linking=true;to.setView(a,from.getZoom(),{animate:false});STATE.linking=false;}
 function onMapMove(source,target){connectMaps(source,target);let c=source.getCenter();STATE.center=[c.lat,c.lng];STATE.zoom=source.getZoom();$('coordBar').textContent=`WGS84　${c.lat.toFixed(6)}° N, ${c.lng.toFixed(6)}° E · Z${source.getZoom()}`;scheduleF03();updateF03YearInfo();scheduleViewSave();}
 function mercator(bounds){let p=L.CRS.EPSG3857.project;const a=p(bounds.getSouthWest()),b=p(bounds.getNorthEast());return [a.x,a.y,b.x,b.y].join(',');}
@@ -935,9 +966,10 @@ function refreshF03(){
  STATE.f03Year=year;STATE.f03=overlays;f03RenderedMode='online';
 }
 function initMap(){if(typeof window.L==='undefined'){$('gisInfo').textContent='無法取得 Leaflet 地圖套件；清單與匯出仍可使用';$('gisInfo').classList.add('error');$('saveState').textContent='地圖套件載入失敗';return;}
- try{const left=L.map('surveyMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom),right=L.map('aerialMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom);STATE.maps=[left,right];for(const map of [left,right]){map.createPane('f03Overlay');map.getPane('f03Overlay').style.zIndex=350;map.getPane('f03Overlay').style.pointerEvents='none';map.createPane('auditAreas');map.getPane('auditAreas').style.zIndex=365;map.createPane('auditPins');map.getPane('auditPins').style.zIndex=575;map.createPane('inspectPreview');map.getPane('inspectPreview').style.zIndex=570;map.getPane('inspectPreview').style.pointerEvents='none';map.createPane('selectedFarmPane');map.getPane('selectedFarmPane').style.zIndex=690;map.getPane('selectedFarmPane').style.pointerEvents='none';map.createPane('deviceLocationPane');map.getPane('deviceLocationPane').style.zIndex=640;map.getPane('deviceLocationPane').style.pointerEvents='none';}STATE.bases=[null,null];startBase('emap');startBase('photo');STATE.auditAreaGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.inspectPreviewGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.auditGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.markerGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.selectedFarmGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.queueHighlights=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneAreaLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneCandidateLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.mapReady=true;
+ try{const left=L.map('surveyMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom),right=L.map('aerialMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom);STATE.maps=[left,right];for(const map of [left,right]){map.createPane('f03Overlay');map.getPane('f03Overlay').style.zIndex=350;map.getPane('f03Overlay').style.pointerEvents='none';map.createPane('auditAreas');map.getPane('auditAreas').style.zIndex=365;map.createPane('auditPins');map.getPane('auditPins').style.zIndex=575;map.createPane('inspectPreview');map.getPane('inspectPreview').style.zIndex=570;map.getPane('inspectPreview').style.pointerEvents='none';map.createPane('selectedFarmPane');map.getPane('selectedFarmPane').style.zIndex=690;map.getPane('selectedFarmPane').style.pointerEvents='none';map.createPane('farmTouchPane');map.getPane('farmTouchPane').style.zIndex=620;map.createPane('deviceLocationPane');map.getPane('deviceLocationPane').style.zIndex=640;map.getPane('deviceLocationPane').style.pointerEvents='none';}STATE.bases=[null,null];startBase('emap');startBase('photo');STATE.auditAreaGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.inspectPreviewGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.auditGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.markerGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.selectedFarmGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.queueHighlights=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneAreaLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneCandidateLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.mapReady=true;
  window.PigGeolocate?.onMapsReady?.();
  for(const map of STATE.maps){map.on('zoomend',renderAuditPins);} for(const map of STATE.maps)map.on('click',clickedMap);left.on('moveend',()=>onMapMove(left,right));right.on('moveend',()=>onMapMove(right,left));left.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);right.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);
+ if(window.matchMedia){const farmLayoutMedia=window.matchMedia('(max-width:1024px)');if(farmLayoutMedia.addEventListener)farmLayoutMedia.addEventListener('change',()=>renderMarkers());else if(farmLayoutMedia.addListener)farmLayoutMedia.addListener(()=>renderMarkers());}
  STATE.showF03=$('showF03').checked;renderMarkers();renderSelectedFarmHighlight();renderAuditPins();renderAuditAreas();renderQueueHighlight();renderZones();setTimeout(()=>{for(const m of STATE.maps)m.invalidateSize();scheduleF03();},350);
  }catch(e){$('gisInfo').textContent='地圖初始化失敗：'+e.message;$('gisInfo').classList.add('error');console.error(e);}}
 /* V3.1: 官方 F03 點位查核；沒有從圖層成功讀到 OBJECTID 不建立虛假的地塊審查 ID。 */
