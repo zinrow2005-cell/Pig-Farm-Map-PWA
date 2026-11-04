@@ -451,3 +451,30 @@
 .cloud-cover.cloud-form-active .cloud-dialog > #cloudUnifiedWizard:not([hidden]){display:block!important}
 .cloud-cover.cloud-form-active .cloud-dialog > form[hidden]{display:none!important}
 @media(max-width:520px){.wizard-progress{gap:3px}.wizard-progress span{font-size:11px;padding:5px}.wizard-decisions{grid-template-columns:1fr 1fr}}
+
+/* V3.3.51 - cloud audit records: human-readable list */
+.cloud-audit-controls{display:grid;grid-template-columns: minmax(0,2fr) minmax(135px,1fr);gap:6px 10px;margin:14px 0 8px}
+.cloud-audit-controls label{font-size:12px;font-weight:650;color:#425e51}
+.cloud-audit-controls input,.cloud-audit-controls select{box-sizing:border-box;min-width:0;width:100%;min-height:42px;border:1px solid #c9dbd1;border-radius:9px;padding:8px 10px;background:#fff;color:#1c3429}
+.cloud-audit-controls label:first-child{grid-column:1;grid-row:1}.cloud-audit-controls label:nth-of-type(2){grid-column:2;grid-row:1}
+.cloud-audit-controls input{grid-column:1;grid-row:2}.cloud-audit-controls select{grid-column:2;grid-row:2}
+.cloud-sync-section .cloud-proposal-list.cloud-audit-list{max-height:360px;overflow:auto}
+.cloud-audit-card{padding:12px!important;margin:8px 0;border:1px solid #d8e7dd!important;border-radius:12px;background:white;font-size:14px}
+.cloud-audit-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cloud-audit-top strong{font-size:15px;overflow-wrap:anywhere}
+.cloud-audit-badge{font-size:12px;background:#e4f3e9;color:#205943;border-radius:16px;padding:3px 9px}
+.cloud-audit-place{font-size:13px;color:#50675b;margin:7px 0;overflow-wrap:anywhere}
+.cloud-audit-actions{display:flex;flex-wrap:wrap;gap:7px}
+.cloud-audit-actions button{min-height:36px;white-space:normal;font-size:13px}
+.cloud-audit-actions button.cloud-audit-delete{color:#a64036;background:#fff9f8;border-color:#efc4bf}
+.cloud-audit-details{margin-top:10px;padding:10px;background:#f4f8f5;border-radius:8px;line-height:1.8;font-size:12px;overflow-wrap:anywhere}
+.cloud-audit-details code{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:600px){.cloud-audit-controls{grid-template-columns:1fr}.cloud-audit-controls label:first-child,.cloud-audit-controls label:nth-of-type(2),.cloud-audit-controls input,.cloud-audit-controls select{grid-column:1;grid-row:auto}.cloud-audit-controls label:nth-of-type(2){grid-row:3}.cloud-audit-controls select{grid-row:4}.cloud-audit-actions button{flex:1 1 auto}}
+
+/* V3.3.52 – clearer cloud audit interactions */
+.cloud-audit-utilities{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;color:#5b7165;font-size:12px}
+.cloud-audit-utilities button{min-height:38px;padding:7px 12px;border:1px solid #bed6c7;border-radius:9px;background:#f5faf7;color:#245844;cursor:pointer}
+.cloud-audit-more{width:100%;min-height:44px;margin:10px 0;border:1px solid #abcdbb;background:#e8f5ee;border-radius:10px;color:#14593e;font-weight:700;cursor:pointer}
+.cloud-audit-more[hidden]{display:none!important}
+.cloud-workflow-nav button:focus-visible,.cloud-audit-actions button:focus-visible,.cloud-audit-utilities button:focus-visible,.cloud-audit-more:focus-visible{outline:3px solid #eeae49;outline-offset:2px}
+@media(max-width:600px){.cloud-audit-utilities{align-items:flex-start;flex-direction:column}.cloud-audit-utilities button{width:100%}}

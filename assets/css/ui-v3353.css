@@ -1,0 +1,30 @@
+
+/* V3.3.53: progressive disclosure & status design. Original data flow unchanged. */
+.metric-intro{display:flex;align-items:baseline;gap:10px;padding:7px 15px 0;background:#f8faf8;color:#26523e}
+.metric-intro strong{font-size:13px}.metric-intro span{font-size:11px;color:#708177}
+.metrics-clickable .metric-link{transition:background .15s,border-color .15s}
+.metrics-clickable .metric-link[data-stat-view="missing"]{background:#fff8eb;border-color:#f2d6a8}
+.metrics-clickable .metric-link[data-stat-view="approved"]{background:#eaf5ef;border-color:#bcd9ca}
+.metrics-clickable .metric-link[data-stat-view="audited"]{background:#f2f5fa;border-color:#cfd9e5}
+.metrics-clickable .metric-link[data-stat-view="located"]{background:#f0f8f8;border-color:#c3dddd}
+.audit-decision-hero{background:#edf7f1;border:1px solid #c6e1cf;border-radius:11px;padding:10px;margin:9px 0;color:#245d40}
+.audit-decision-hero strong{font-size:14px}.audit-decision-hero p{font-size:12px!important;margin:4px 0 0!important;color:#536b5c}
+.audit-panel #auditActions:not([hidden]){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.audit-panel #auditActions button{min-height:45px!important;padding:8px!important;font-size:13px!important;border-radius:10px;font-weight:700}
+.audit-panel #auditActions button[data-audit="pig"]{background:#1d6d4e;color:white}
+.audit-panel #auditActions button[data-audit="maybe"]{background:#fff6de;color:#8d611c;border:1px solid #e5cb87}
+.audit-panel #auditActions button[data-audit="other"]{background:#f0f2f2;color:#3a5860;border:1px solid #ced7d8}
+.audit-decision-help{font-size:11px!important;color:#738176!important;margin-top:2px!important}
+.audit-advanced-toggle{margin-top:7px!important}
+.status-meaning-strip{display:flex;flex-wrap:wrap;gap:6px;padding:5px 0 10px}
+.status-meaning-strip span{font-size:11px;font-weight:650;border-radius:20px;padding:5px 10px;background:#f2f5f3}
+.state-located{color:#176a74!important;background:#e8f5f6!important}.state-unlocated{color:#936014!important;background:#fff2d8!important}.state-pending{color:#8553a0!important;background:#f5edfa!important}.state-approved{color:#256c4a!important;background:#e4f4e9!important}
+.management-route-guide{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:11px 0}
+.management-route-guide>div{display:flex;flex-direction:column;gap:4px;border:1px solid #d5e4d9;background:#f7faf8;border-radius:11px;padding:10px;min-width:0}
+.management-route-guide strong{font-size:12px}.management-route-guide small{font-size:11px;color:#63786d;line-height:1.5}.route-icon{display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:9px;background:#dceee3;color:#1d6b4e;font-weight:bold}
+.form-section-title{display:flex;flex-direction:column;gap:3px;margin:15px 0 6px;padding:9px 11px;border-left:4px solid #4a9b79;background:#f3f8f5;border-radius:0 9px 9px 0}
+.form-section-title b{font-size:13px;color:#1f6045}.form-section-title small{font-size:11px;color:#71857a}
+.record-mode-tag{display:inline-block;font-size:12px;font-weight:700;border-radius:20px;padding:6px 11px;margin:8px 0;background:#e9f5ed;color:#166744}
+.record-mode-tag.edit{background:#eaf1fa;color:#305c8d}
+#cloudNewForm input:focus-visible,#cloudEditForm input:focus-visible{outline:2px solid #4ba57c;outline-offset:1px}
+@media(max-width:700px){.metric-intro{padding:5px 9px 0}.metric-intro span{font-size:10px}.management-route-guide{grid-template-columns:1fr}.management-route-guide>div{display:grid;grid-template-columns:30px 1fr;align-items:center;gap:2px 8px}.management-route-guide small{grid-column:2}.audit-panel #auditActions:not([hidden]){grid-template-columns:repeat(2,minmax(0,1fr))}}

@@ -2167,7 +2167,15 @@ async function init(){const f03Diag=$('f03Diag');if(f03Diag)f03Diag.addEventList
   $('f03Source').value=f03SourceMode;updateF03YearInfo();await reloadOfflineF03(STATE.year);
   if(bundledError)offlineStatus('內建圖資校驗失敗，已退回線上圖層：'+bundledError,true);
   else if(f03SourceMode==='builtin')offlineStatus(offlineSummary());
-  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),findRecords:term=>STATE.records.filter(r=>[r.name,r.county,r.town,r.address,r.legacyId,r.uid].join(' ').toLocaleLowerCase().includes(term)).map(r=>({uid:r.uid,name:r.name,county:r.county,town:r.town,address:r.address,located:!!C.center(r)})),pickExistingOnMap:uid=>{STATE.locateId=uid;closeFarmDetails();closeEditor();mode('locate');notice('請點選地圖上的正確位置，選完會回到原本豬場資料編輯。');},applyApproved:applyCloudFarms,removeDeleted:removeDeletedCloudFarms,focusApproved:uid=>focusFarmRecord(uid,{move:true}),notifyApproved:message=>notice(message),getLocalAudits:()=>Object.values(STATE.audits),importSharedAudits,getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
+  updateF03MatchBadge();initMap();window.PigCommunity?.start({getRecord:uid=>STATE.records.find(x=>x.uid===uid),findRecords:term=>STATE.records.filter(r=>[r.name,r.county,r.town,r.address,r.legacyId,r.uid].join(' ').toLocaleLowerCase().includes(term)).map(r=>({uid:r.uid,name:r.name,county:r.county,town:r.town,address:r.address,located:!!C.center(r)})),pickExistingOnMap:uid=>{STATE.locateId=uid;closeFarmDetails();closeEditor();mode('locate');notice('請點選地圖上的正確位置，選完會回到原本豬場資料編輯。');},applyApproved:applyCloudFarms,removeDeleted:removeDeletedCloudFarms,focusApproved:uid=>focusFarmRecord(uid,{move:true}),notifyApproved:message=>notice(message),getLocalAudits:()=>Object.values(STATE.audits),focusSharedAudit:item=>{
+  const lat=Number(item?.lat),lng=Number(item?.lng);
+  if(!C.coord(lat,lng)||!STATE.mapReady)return false;
+  const uid=String(item.promotedToUid||item.recordUid||'');
+  if(uid&&STATE.records.some(r=>r.uid===uid&&C.center(r)))focusFarmRecord(uid,{move:true});
+  else goto([lat,lng],Math.max(16,STATE.maps[0]?.getZoom()||16));
+  notice('已定位到雲端查核位置；可從地圖查看地塊與附近豬場。');
+  return true;
+ },importSharedAudits,getSeedRecords:()=>C.legacyToAll(window.PIG_FARM_LEGACY_SEED||[])});}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'){
  if(STATE.viewSaveTimer){clearTimeout(STATE.viewSaveTimer);STATE.viewSaveTimer=null;persist();}
  if(dirtyRev>committedRev)flushSave();

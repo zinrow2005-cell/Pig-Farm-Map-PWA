@@ -10,7 +10,8 @@ let liveFarms=new Map(),proposals=[],activeFarm=null,unsubFarms=null,unsubPropos
 let farmsFromCache=true,seedBusy=false,newPoint=null,newBusy=false,auditContext=null,unsubNewSubmissions=null,newSubmissions=[];
 let deletedFarmIds=new Set(),unsubDeleted=null,deleteBusy=false,editBusy=false;
 let unifiedFlow=null;
-let sharedAudits=[],syncBusy=false; // cloud copies never replace local data without explicit import
+let sharedAudits=[],syncBusy=false;
+let cloudAuditPageSize=100,cloudFormDirty=false; // cloud copies never replace local data without explicit import
 function status(msg,bad=false){
  for(const id of ['cloudStatus','cloudDialogStatus']){const el=$(id);if(el){el.textContent=msg;el.dataset.error=bad?'yes':'no';}}
  const btn=$('cloudOpen');if(btn)btn.title=msg;
@@ -40,6 +41,8 @@ function bindCloudTabs(){
   const view=button.dataset.cloudView;
   const panel=$('cloudPanel');
   if(panel?.classList.contains('cloud-form-active')){
+   if(!canLeaveCloudForm())return;
+   clearCloudFormDirty();
    panel.classList.remove('cloud-form-active');
    const newForm=$('cloudNewForm'),editForm=$('cloudEditForm');
    if(newForm)newForm.hidden=true;
@@ -53,6 +56,7 @@ function initCloudFormNavigation(){
  if(!panel||!back||!bar||back.dataset.bound==='1')return;
  back.dataset.bound='1';
  back.addEventListener('click',()=>{
+  if(!canLeaveCloudForm())return;clearCloudFormDirty();
   if(unifiedFlow){unifiedBack();return;}
   const form=(!$('cloudEditForm')?.hidden)?$('cloudEditForm'):$('cloudNewForm');
   if(form&&!form.hidden){const active=document.activeElement;if(form.contains(active)&&active?.blur)active.blur();}
@@ -66,6 +70,12 @@ function initCloudFormNavigation(){
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{bindCloudTabs();initCloudFormNavigation();});
 else {bindCloudTabs();initCloudFormNavigation();}
+// Guard users against accidentally leaving an unfinished farm edit.
+function canLeaveCloudForm(){
+ if(!cloudFormDirty)return true;
+ return root.confirm('豬場資料尚未儲存。確定要放棄剛才輸入的修改嗎？');
+}
+function clearCloudFormDirty(){cloudFormDirty=false;}
 function err(e){const code=String(e?.code||''); if(code.includes('permission-denied'))return '沒有資料庫存取權限：請確認 Firestore 規則已發布、Google 登入已啟用及管理員 UID 設定';
  if(code.includes('auth/unauthorized-domain'))return '目前網站網域尚未加入 Firebase Authentication 已授權網域';
  if(code.includes('popup-blocked'))return '瀏覽器擋住了 Google 登入視窗；請使用 Safari 或 Chrome 開啟網站並允許彈出視窗';
@@ -73,8 +83,8 @@ function err(e){const code=String(e?.code||''); if(code.includes('permission-den
  if(code.includes('unavailable')||code.includes('network'))return '網路或 Firebase 連線暫時不可用，資料尚未送達雲端';
  return clean(e?.message||e,200);}
 function enabled(){return configured;}
-function open(){const p=$('cloudPanel');if(!p)return;p.hidden=false;renderUser();renderProposals();updateLinkage();setCloudView('manage');if(!configured)status('尚未填入 Firebase Web 設定；目前仍使用本機豬場資料，沒有雲端同步',true);}
-function close(){if($('cloudPanel')){$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');}if($('cloudUnifiedWizard'))$('cloudUnifiedWizard').hidden=true;unifiedFlow=null;auditContext=null;}
+function open(){clearCloudFormDirty();const p=$('cloudPanel');if(!p)return;p.hidden=false;renderUser();renderProposals();updateLinkage();setCloudView('manage');if(!configured)status('尚未填入 Firebase Web 設定；目前仍使用本機豬場資料，沒有雲端同步',true);}
+function close(){clearCloudFormDirty();if($('cloudPanel')){$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');}if($('cloudUnifiedWizard'))$('cloudUnifiedWizard').hidden=true;unifiedFlow=null;auditContext=null;}
 // Shared identity: the parcelKey is the stable link across local review,
 // farmSubmissions and farms.auditParcelKey. Point-only records retain an explicit key.
 function parcelSummary(parcelKey=''){
@@ -110,8 +120,60 @@ async function readSharedAudits(){
   syncMessage(`雲端查核已讀取 ${sharedAudits.length} 筆（最多顯示 500 筆）；匯入時不覆寫本機資料。`);return true;
  }catch(e){syncMessage('讀取雲端查核失敗：'+err(e),true);return false;}
 }
-function renderSharedAudits(){const target=$('cloudSyncList');if(!target)return;
- target.innerHTML=sharedAudits.slice(0,60).map(a=>`<div class="cloud-sync-entry"><b>${esc(a.key||'未知位置')}</b><small>${esc({pig:'判定豬場',maybe:'疑似豬場',other:'非豬場',defer:'暫不判斷'}[a.decision]||'查核')} · ${esc(a.ownerUid===user?.uid?'我的紀錄':'其他登入者紀錄')} · ${esc(a.promotedToUid?'已轉正式豬場':'尚未轉正式')}</small>${a.ownerUid===user?.uid?`<button type="button" data-cloud-audit-delete="${esc(a.cloudDocId)}">刪除我的雲端查核</button>`:''}</div>`).join('')||'<p class="subtle">沒有查核紀錄。</p>';
+// Display useful location and farm data first; technical parcel IDs belong to details.
+function auditLinkedFarm(a){
+ const uid=clean(a.promotedToUid||a.recordUid,100);
+ return uid?(liveFarms.get(uid)||hook?.getRecord?.(uid)||null):null;
+}
+function auditDecisionLabel(a){return {pig:'確認是豬場',maybe:'疑似豬場',other:'非豬場',defer:'待確認'}[a.decision]||'待確認';}
+function auditStatusLabel(a){return a.promotedToUid?'已轉正式豬場':auditDecisionLabel(a);}
+function auditTitle(a){
+ const f=auditLinkedFarm(a);
+ const title=clean(f?.name||a.farmName||a.name,120);
+ return title||'未命名查核地塊';
+}
+function auditLocation(a){
+ const f=auditLinkedFarm(a);
+ const place=[clean(f?.county||a.county,30),clean(f?.town||a.town,30),clean(f?.address||a.address,140)].filter(Boolean).join(' ');
+ if(place)return place;
+ const lat=Number(a.lat),lng=Number(a.lng);
+ return Number.isFinite(lat)&&Number.isFinite(lng)?`地圖位置 ${lat.toFixed(6)}, ${lng.toFixed(6)}`:'尚無可用位置';
+}
+function auditRowsFiltered(){
+ const term=clean($('cloudAuditSearch')?.value,120).toLocaleLowerCase();
+ const state=$('cloudAuditFilter')?.value||'all';
+ return sharedAudits.filter(a=>{
+  if(state==='promoted'&&!a.promotedToUid)return false;
+  if(state!=='all'&&state!=='promoted'&&(a.promotedToUid||a.decision!==state))return false;
+  const search=[auditTitle(a),auditLocation(a),auditDecisionLabel(a),a.key,a.cloudDocId].join(' ').toLocaleLowerCase();
+  return !term||search.includes(term);
+ });
+}
+function renderSharedAudits(){
+ const target=$('cloudSyncList');if(!target)return;
+ const filtered=auditRowsFiltered(),visible=filtered.slice(0,cloudAuditPageSize);
+ const count=$('cloudAuditCount');if(count)count.textContent=`符合條件 ${filtered.length} 筆／雲端已讀取 ${sharedAudits.length} 筆`+(filtered.length>cloudAuditPageSize?`（已顯示前 ${cloudAuditPageSize} 筆，可點下方「顯示更多」）`:'');
+ const more=$('cloudAuditMore');if(more){more.hidden=filtered.length<=cloudAuditPageSize;more.textContent=`顯示更多（尚有 ${Math.max(0,filtered.length-cloudAuditPageSize)} 筆）`;}
+ target.innerHTML=visible.map(a=>{
+  const id=esc(a.cloudDocId||''),title=esc(auditTitle(a)),loc=esc(auditLocation(a));
+  const state=esc(auditStatusLabel(a)),own=a.ownerUid===user?.uid;
+  const lat=Number(a.lat),lng=Number(a.lng),valid=Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=21&&lat<=27&&lng>=118&&lng<=123;
+  const details=`<div class="cloud-audit-details"><div><b>判定：</b>${esc(auditDecisionLabel(a))}</div><div><b>來源：</b>${esc(own?'我的雲端紀錄':'其他登入者紀錄')}</div><div><b>座標：</b>${valid?esc(lat.toFixed(6)+', '+lng.toFixed(6)):'無'}</div><div><b>備註：</b>${esc(a.note||'未填寫')}</div><div><b>地塊內部識別碼：</b><code>${esc(a.key||'未提供')}</code></div>${a.promotedToUid?`<div><b>正式豬場關聯：</b><code>${esc(a.promotedToUid)}</code></div>`:''}</div>`;
+  return `<article class="cloud-sync-entry cloud-audit-card"><div class="cloud-audit-top"><strong>${title}</strong><span class="cloud-audit-badge">${state}</span></div><div class="cloud-audit-place">${loc}</div><div class="cloud-audit-actions"><button type="button" data-cloud-audit-map="${id}" ${valid?'':'disabled'}>⌖ 查看地圖</button><button type="button" data-cloud-audit-detail="${id}" aria-expanded="false">查看詳情</button>${own?`<button type="button" class="cloud-audit-delete" data-cloud-audit-delete="${id}">刪除我的雲端副本</button>`:''}</div><div data-cloud-audit-detail-panel="${id}" hidden>${details}</div></article>`;
+ }).join('')||'<p class="subtle">沒有符合條件的紀錄。可更換篩選條件或重新讀取雲端資料。</p>';
+}
+function viewSharedAuditOnMap(id){
+ const a=sharedAudits.find(x=>x.cloudDocId===id);if(!a)return syncMessage('找不到這筆雲端查核，請重新讀取。',true);
+ const lat=Number(a.lat),lng=Number(a.lng);
+ if(!Number.isFinite(lat)||!Number.isFinite(lng)||lat<21||lat>27||lng<118||lng>123)return syncMessage('這筆紀錄沒有有效座標，無法定位。',true);
+ const focused=hook?.focusSharedAudit?.(a)||false;
+ if(!focused)return syncMessage('目前地圖尚未完成載入，請重新開啟地圖後再試。',true);
+ close();
+}
+function toggleSharedAuditDetails(id,button){
+ const panel=[...$('cloudSyncList').querySelectorAll('[data-cloud-audit-detail-panel]')].find(x=>x.dataset.cloudAuditDetailPanel===id);
+ if(!panel)return;
+ panel.hidden=!panel.hidden;button.setAttribute('aria-expanded',String(!panel.hidden));button.textContent=panel.hidden?'查看詳情':'收起詳情';
 }
 async function deleteSharedAudit(id){
  if(!user||!db)return syncMessage('請先登入 Google。',true);
@@ -155,7 +217,7 @@ function renderProposals(){const box=$('cloudProposals');if(!box)return;
  const combined=[...newSubmissions.map(p=>({...p,kind:'new'})),...proposals];
  box.innerHTML=combined.length?combined.map(p=>`<article class="cloud-proposal"><div><strong>${esc(p.proposedName||p.farmUid)}</strong><small> ${esc(p.status==='approved'?'已採納':p.status==='rejected'?'未採納':'待確認')} · ${esc(proposalDate(p.submittedAt))}</small></div><div>${esc(p.proposedCounty)} ${esc(p.proposedTown)} · ${esc(p.proposedAddress)}</div><small>座標：${p.proposedLat===null?'未提供':esc(p.proposedLat)}, ${p.proposedLng===null?'未提供':esc(p.proposedLng)}</small>${p.note?`<small>依據：${esc(p.note)}</small>`:''}${p.kind==='new'?'<small>新增豬場申請</small>':''}${admin&&p.status==='pending'?`<div class="cloud-actions"><button type="button" data-approve="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">${p.kind==='new'?'核准新增':'確認採納'}</button><button type="button" data-reject="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">不採納</button></div>`:''}</article>`).join(''):'<p class="subtle">目前沒有共用編輯紀錄。</p>';
 }
-function edit(uid){open();const r=hook?.getRecord(uid);if(!r){status('找不到此豬場紀錄',true);return;}activeFarm=uid;setCloudView('manage');$('cloudPanel').classList.add('cloud-form-active');
+function edit(uid){open();clearCloudFormDirty();const r=hook?.getRecord(uid);if(!r){status('找不到此豬場紀錄',true);return;}activeFarm=uid;setCloudView('manage');$('cloudPanel').classList.add('cloud-form-active');
  const cloud=liveFarms.get(uid)||{};
  const geo=r.geometry?.type==='Point'?r.geometry.coordinates:null;
  $('cloudFarm').textContent=(cloud.name||r.name)+' · '+(cloud.town||r.town||'鄉鎮待查')+' · '+uid;
@@ -195,7 +257,7 @@ function linkExistingFromPoint(uid){
  editAt(uid,lat,lng);
  if(unifiedFlow){$('cloudEditWizardBack').hidden=false;$('cloudEditWizardProgress').hidden=false;}
 }
-function beginNew(lat=null,lng=null){
+function beginNew(lat=null,lng=null){clearCloudFormDirty();
  open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
  const hasCoords=lat!==null&&lng!==null;
  setCloudView('manage');
@@ -455,7 +517,7 @@ async function seed(){if(!admin||!user||!db||seedBusy)return;
  }catch(e){status(`初始化中斷：已完成 ${completed} 筆。${err(e)}。可再次按「補齊」，不會覆寫既有資料。`,true);}finally{seedBusy=false;renderUser();}
 }
 async function start(options){if(started)return;started=true;hook=options;
- $('cloudOpen')?.addEventListener('click',open);$('cloudClose')?.addEventListener('click',close);
+ $('cloudOpen')?.addEventListener('click',open);$('cloudClose')?.addEventListener('click',()=>{if(!canLeaveCloudForm())return;close();});
  bindCloudTabs();
  $('cloudLoginQuick')?.addEventListener('click',()=>{if(user)open();else if(auth)signIn();else open();});
  $('mobileAuthToggle')?.addEventListener('click',()=>{if(user)open();else if(auth)signIn();else open();});
@@ -472,11 +534,20 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudSyncRefresh')?.addEventListener('click',()=>{setCloudView('sync');syncMessage('正在讀取雲端查核…');readSharedAudits();});
  $('cloudSyncUpload')?.addEventListener('click',()=>{setCloudView('sync');uploadLocalAudits();});
  $('cloudSyncImport')?.addEventListener('click',()=>{setCloudView('sync');importSharedAudits();});
- $('cloudSyncList')?.addEventListener('click',e=>{const b=e.target.closest('[data-cloud-audit-delete]');if(b)deleteSharedAudit(b.dataset.cloudAuditDelete);});
+ $('cloudAuditSearch')?.addEventListener('input',()=>{cloudAuditPageSize=100;renderSharedAudits();});
+ $('cloudAuditFilter')?.addEventListener('change',()=>{cloudAuditPageSize=100;renderSharedAudits();});
+ $('cloudAuditClear')?.addEventListener('click',()=>{if($('cloudAuditSearch'))$('cloudAuditSearch').value='';if($('cloudAuditFilter'))$('cloudAuditFilter').value='all';cloudAuditPageSize=100;renderSharedAudits();$('cloudAuditSearch')?.focus();});
+ $('cloudAuditMore')?.addEventListener('click',()=>{cloudAuditPageSize+=100;renderSharedAudits();});
+ $('cloudSyncList')?.addEventListener('click',e=>{
+  const del=e.target.closest('[data-cloud-audit-delete]');if(del){deleteSharedAudit(del.dataset.cloudAuditDelete);return;}
+  const map=e.target.closest('[data-cloud-audit-map]');if(map){viewSharedAuditOnMap(map.dataset.cloudAuditMap);return;}
+  const detail=e.target.closest('[data-cloud-audit-detail]');if(detail)toggleSharedAuditDetails(detail.dataset.cloudAuditDetail,detail);
+ });
+ for(const id of ['cloudNewForm','cloudEditForm']){const form=$(id);form?.addEventListener('input',()=>{cloudFormDirty=true;});form?.addEventListener('change',()=>{cloudFormDirty=true;});}
  $('cloudNewForm')?.addEventListener('submit',createFarm);$('cloudDelete')?.addEventListener('click',()=>deleteActiveFarm());
- $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');newPoint=null;auditContext=null;unifiedFlow=null;});
+ $('cloudNewCancel')?.addEventListener('click',()=>{if(!canLeaveCloudForm())return;clearCloudFormDirty();$('cloudNewForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');newPoint=null;auditContext=null;unifiedFlow=null;});
  $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve,target.dataset.kind||'edit');});
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cloudPanel').hidden)close();});
+ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cloudPanel').hidden){if(!canLeaveCloudForm())return;close();}});
  const seedButton=$('cloudSeed');if(seedButton){const details=document.createElement('details');details.className='cloud-advanced';details.innerHTML='<summary>進階管理：初始化名冊（一般操作不需要）</summary><p>僅限雲端資料庫確實缺少初始名冊時使用，切勿反覆初始化。</p>';seedButton.parentNode?.append(details);details.append(seedButton);}
  if(!configured){status('尚未設定 Google Firebase：此版本目前仍是本機模式，沒有多人同步',true);renderUser();return;}
  if(location.protocol==='file:'){status('請透過 HTTPS GitHub Pages 開啟網站，才能使用 Firebase；直接開啟本機 HTML 無法驗收登入。',true);return;}
