@@ -757,7 +757,7 @@ function markFarmParcelAt(lat,lng){
  if(result){$('auditPanel').hidden=true;clearInspectPreview();}
 }
 function clickedMap(e){if(STATE.tool==='point'){mode('browse');markFarmParcelAt(e.latlng.lat,e.latlng.lng);}else if(STATE.tool==='locate'){let id=STATE.locateId;STATE.locateId=null;mode('browse');if(window.PigCommunity?.enabled){window.PigCommunity.editAt(id,e.latlng.lat,e.latlng.lng);}else createPointAt(e.latlng.lat,e.latlng.lng,id);}else if(STATE.tool==='poly'){STATE.draw.push([e.latlng.lat,e.latlng.lng]);refreshDraw();}else if(STATE.tool==='inspect'){inspectAt(e.latlng.lat,e.latlng.lng);} }
-function changeView(view){STATE.view=view;$('maps').className='maps '+view;document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===view));setTimeout(()=>{if(STATE.mapReady){for(const m of STATE.maps)m.invalidateSize();const a=STATE.maps[0];STATE.maps[1].setView(a.getCenter(),a.getZoom(),{animate:false});refreshF03();}},120);persist();}
+function changeView(view){STATE.view=view;clearFarmLabelCanvases();scheduleFarmNameLabels();$('maps').className='maps '+view;document.querySelectorAll('[data-view]').forEach(el=>el.classList.toggle('active',el.dataset.view===view));setTimeout(()=>{if(STATE.mapReady){for(const m of STATE.maps)m.invalidateSize();const a=STATE.maps[0];STATE.maps[1].setView(a.getCenter(),a.getZoom(),{animate:false});refreshF03();}},120);persist();}
 /* V3.1.1 底圖監控：官方底圖逾時或圖磚失敗，自動換公開備援；每張地圖獨立處理。 */
 const BASEMAPS={
  emap:[
@@ -800,44 +800,98 @@ function restartBaseMaps(backup=false){
 
 /* V3.3.35: use DOM marker hit targets on touch layouts. Leaflet Canvas vector hit tests are unreliable on narrow mobile browsers. */
 let showFarmNames=false;try{showFarmNames=localStorage.getItem('pig-show-farm-names')==='1';}catch(e){}
-/* V3.3.57: lightweight, viewport-only name labels. Never rebuild every pigfarm marker when toggling labels. */
+/* V3.3.58: One non-interactive Canvas per map (no DOM labels or Leaflet layers per farm).
+   During pan/zoom, labels disappear and are redrawn only after the view settles. */
 let farmLabelTimer=null;
+let farmLabelFrame=0;
+let farmLabelIndex=null;
+const FARM_LABEL_BUCKET=.02;
+const FARM_LABEL_CANVASES=[null,null];
+function invalidateFarmLabelIndex(){farmLabelIndex=null;}
+function getFarmLabelIndex(){
+ if(farmLabelIndex&&farmLabelIndex.records===STATE.filtered)return farmLabelIndex.buckets;
+ const buckets=new Map();
+ for(const r of STATE.filtered){
+  const p=C.center(r);if(!p||!Number.isFinite(p[0])||!Number.isFinite(p[1]))continue;
+  const x=Math.floor(p[1]/FARM_LABEL_BUCKET),y=Math.floor(p[0]/FARM_LABEL_BUCKET),key=x+','+y;
+  if(!buckets.has(key))buckets.set(key,[]);
+  buckets.get(key).push({r,p});
+ }
+ farmLabelIndex={records:STATE.filtered,buckets};return buckets;
+}
+function getFarmLabelCanvas(map,i){
+ let canvas=FARM_LABEL_CANVASES[i];if(canvas)return canvas;
+ const pane=map.getPane('farmNamePane');if(!pane)return null;
+ canvas=document.createElement('canvas');canvas.className='farm-name-canvas';
+ canvas.setAttribute('aria-hidden','true');canvas.style.pointerEvents='none';
+ pane.appendChild(canvas);FARM_LABEL_CANVASES[i]=canvas;return canvas;
+}
+function clearFarmLabelCanvases(){
+ for(const canvas of FARM_LABEL_CANVASES){if(!canvas)continue;canvas.style.display='none';}
+}
 function scheduleFarmNameLabels(){
  clearTimeout(farmLabelTimer);
- farmLabelTimer=setTimeout(renderFarmNameLabels,110);
+ if(farmLabelFrame)cancelAnimationFrame(farmLabelFrame);
+ if(!showFarmNames){clearFarmLabelCanvases();return;}
+ // Waiting for a stable viewport is important on older iPhones and iPads.
+ farmLabelTimer=setTimeout(()=>{farmLabelFrame=requestAnimationFrame(renderFarmNameLabels);},360);
 }
 function renderFarmNameLabels(){
- if(!STATE.mapReady||!STATE.farmNameGroups?.length)return;
+ farmLabelFrame=0;
+ if(!STATE.mapReady||!showFarmNames)return clearFarmLabelCanvases();
  const mobile=window.matchMedia?.('(max-width:1024px)').matches===true;
- const minimumZoom=mobile?17:15;
- const limit=mobile?22:55;
- STATE.farmNameGroups.forEach((group,i)=>{
-  group.clearLayers();
-  const map=STATE.maps[i];
-  if(!showFarmNames||!map||map.getZoom()<minimumZoom)return;
-  const bounds=map.getBounds().pad(.08),center=map.getCenter(),size=map.getSize();
+ const minimumZoom=mobile?17:15,limit=mobile?12:50;
+ const buckets=getFarmLabelIndex();
+ for(let i=0;i<STATE.maps.length;i++){
+  const map=STATE.maps[i],old=FARM_LABEL_CANVASES[i];
+  // Only one name overlay on mobile. In dual-map mode use the aerial photo.
+  if((mobile&&i!==(STATE.view==='survey'?0:1))||!map||map.getZoom()<minimumZoom){if(old)old.style.display='none';continue;}
+  const size=map.getSize();if(size.x<20||size.y<20){if(old)old.style.display='none';continue;}
+  const canvas=getFarmLabelCanvas(map,i);if(!canvas)continue;
+  const ratio=Math.min(window.devicePixelRatio||1,mobile?1.5:2);
+  const w=Math.round(size.x*ratio),h=Math.round(size.y*ratio);
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;canvas.style.width=size.x+'px';canvas.style.height=size.y+'px';}
+  L.DomUtil.setPosition(canvas,map.containerPointToLayerPoint([0,0]));
+  const ctx=canvas.getContext('2d',{alpha:true});if(!ctx)continue;
+  ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,size.x,size.y);
+  const b=map.getBounds().pad(.03),center=map.getCenter();
+  const x0=Math.floor(b.getWest()/FARM_LABEL_BUCKET),x1=Math.floor(b.getEast()/FARM_LABEL_BUCKET);
+  const y0=Math.floor(b.getSouth()/FARM_LABEL_BUCKET),y1=Math.floor(b.getNorth()/FARM_LABEL_BUCKET);
   const candidates=[];
-  for(const r of STATE.filtered){
-   const point=C.center(r);if(!point||!bounds.contains(point))continue;
-   const pixel=map.latLngToContainerPoint(point);
-   if(pixel.x<35||pixel.y<25||pixel.x>size.x-35||pixel.y>size.y-25)continue;
-   candidates.push({r,point,pixel,dist:Math.abs(point[0]-center.lat)+Math.abs(point[1]-center.lng)});
+  // Guard against accidental global-map scans at unexpectedly large bounds.
+  if((x1-x0+1)*(y1-y0+1)>1200){canvas.style.display='none';continue;}
+  for(let x=x0;x<=x1;x++)for(let y=y0;y<=y1;y++){
+   const group=buckets.get(x+','+y);if(!group)continue;
+   for(const item of group){
+    if(!b.contains(item.p))continue;
+    const pt=map.latLngToContainerPoint(item.p);
+    if(pt.x<38||pt.y<34||pt.x>size.x-38||pt.y>size.y-30)continue;
+    const d=(pt.x-size.x/2)**2+(pt.y-size.y/2)**2;
+    candidates.push({r:item.r,pt,d});
+   }
   }
-  candidates.sort((a,b)=>a.dist-b.dist);
-  const used=new Set();let added=0;
-  for(const candidate of candidates){
-   if(added>=limit)break;
-   const {r,point,pixel}=candidate;
-   const col=Math.floor(pixel.x/118),row=Math.floor(pixel.y/39),cell=col+':'+row;
-   if(used.has(cell))continue;used.add(cell);
-   const name=String(r.name||'未命名豬場');
-   const label=L.marker(point,{interactive:false,keyboard:false,pane:'farmNamePane',
-    icon:L.divIcon({className:'farm-name-lite-anchor',html:'<span class="farm-name-lite">'+html(name.length>18?name.slice(0,17)+'…':name)+'</span>',iconSize:[0,0],iconAnchor:[0,23]})});
-   group.addLayer(label);added++;
+  candidates.sort((a,b)=>a.d-b.d);
+  const occupied=new Set();let count=0;
+  ctx.font=(mobile?'bold 11px':'bold 12px')+' system-ui, -apple-system, sans-serif';
+  ctx.textBaseline='middle';ctx.textAlign='center';
+  for(const item of candidates){
+   if(count>=limit)break;
+   const {pt,r}=item;
+   const col=Math.floor(pt.x/(mobile?118:140)),row=Math.floor(pt.y/35),cell=col+','+row;
+   if(occupied.has(cell))continue;
+   occupied.add(cell);
+   let name=String(r.name||'未命名豬場');if(name.length>15)name=name.slice(0,14)+'…';
+   const textWidth=ctx.measureText(name).width,boxWidth=Math.min(textWidth+12,mobile?122:155);
+   const bx=pt.x-boxWidth/2,by=pt.y-39;
+   ctx.fillStyle='rgba(255,254,248,.94)';ctx.strokeStyle='rgba(124,172,146,.9)';ctx.lineWidth=1;
+   ctx.beginPath();ctx.rect(bx,by,boxWidth,23);ctx.fill();ctx.stroke();
+   ctx.fillStyle='#164c34';ctx.fillText(name,pt.x,by+12,boxWidth-8);count++;
   }
- });
+  canvas.style.display='block';
+ }
 }
 function renderMarkers(){
+ invalidateFarmLabelIndex();
  if(!STATE.mapReady)return;
  for(const group of STATE.markerGroups)group.clearLayers();
  const touchLayout=window.matchMedia?.('(max-width:1024px)').matches===true;
@@ -1060,9 +1114,9 @@ function refreshF03(){
  STATE.f03Year=year;STATE.f03=overlays;f03RenderedMode='online';
 }
 function initMap(){if(typeof window.L==='undefined'){$('gisInfo').textContent='無法取得 Leaflet 地圖套件；清單與匯出仍可使用';$('gisInfo').classList.add('error');$('saveState').textContent='地圖套件載入失敗';return;}
- try{const left=L.map('surveyMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom),right=L.map('aerialMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom);STATE.maps=[left,right];for(const map of [left,right]){map.createPane('f03Overlay');map.getPane('f03Overlay').style.zIndex=350;map.getPane('f03Overlay').style.pointerEvents='none';map.createPane('auditAreas');map.getPane('auditAreas').style.zIndex=365;map.createPane('auditPins');map.getPane('auditPins').style.zIndex=575;map.createPane('inspectPreview');map.getPane('inspectPreview').style.zIndex=570;map.getPane('inspectPreview').style.pointerEvents='none';map.createPane('selectedFarmPane');map.getPane('selectedFarmPane').style.zIndex=690;map.getPane('selectedFarmPane').style.pointerEvents='none';map.createPane('farmTouchPane');map.getPane('farmTouchPane').style.zIndex=620;map.createPane('farmNamePane');map.getPane('farmNamePane').style.zIndex=660;map.getPane('farmNamePane').style.pointerEvents='none';map.createPane('deviceLocationPane');map.getPane('deviceLocationPane').style.zIndex=640;map.getPane('deviceLocationPane').style.pointerEvents='none';}STATE.bases=[null,null];startBase('emap');startBase('photo');STATE.auditAreaGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.inspectPreviewGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.auditGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.markerGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.farmNameGroups=[L.layerGroup().addTo(left),L.layerGroup().addTo(right)];STATE.selectedFarmGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.queueHighlights=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneAreaLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneCandidateLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.mapReady=true;
+ try{const left=L.map('surveyMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom),right=L.map('aerialMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom);STATE.maps=[left,right];for(const map of [left,right]){map.createPane('f03Overlay');map.getPane('f03Overlay').style.zIndex=350;map.getPane('f03Overlay').style.pointerEvents='none';map.createPane('auditAreas');map.getPane('auditAreas').style.zIndex=365;map.createPane('auditPins');map.getPane('auditPins').style.zIndex=575;map.createPane('inspectPreview');map.getPane('inspectPreview').style.zIndex=570;map.getPane('inspectPreview').style.pointerEvents='none';map.createPane('selectedFarmPane');map.getPane('selectedFarmPane').style.zIndex=690;map.getPane('selectedFarmPane').style.pointerEvents='none';map.createPane('farmTouchPane');map.getPane('farmTouchPane').style.zIndex=620;map.createPane('farmNamePane');map.getPane('farmNamePane').style.zIndex=660;map.getPane('farmNamePane').style.pointerEvents='none';map.createPane('deviceLocationPane');map.getPane('deviceLocationPane').style.zIndex=640;map.getPane('deviceLocationPane').style.pointerEvents='none';}STATE.bases=[null,null];startBase('emap');startBase('photo');STATE.auditAreaGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.inspectPreviewGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.auditGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.markerGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.farmNameGroups=[];STATE.selectedFarmGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.queueHighlights=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneAreaLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneCandidateLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.mapReady=true;
  window.PigGeolocate?.onMapsReady?.();
- for(const map of STATE.maps){map.on('zoomend',renderAuditPins);map.on('zoomend',scheduleFarmNameLabels);} for(const map of STATE.maps)map.on('click',clickedMap);left.on('moveend',()=>onMapMove(left,right));right.on('moveend',()=>onMapMove(right,left));left.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);right.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);
+ for(const map of STATE.maps){map.on('zoomend',renderAuditPins);map.on('zoomend',scheduleFarmNameLabels);map.on('movestart',clearFarmLabelCanvases);map.on('zoomstart',clearFarmLabelCanvases);map.on('resize',scheduleFarmNameLabels);} for(const map of STATE.maps)map.on('click',clickedMap);left.on('moveend',()=>onMapMove(left,right));right.on('moveend',()=>onMapMove(right,left));left.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);right.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);
  if(window.matchMedia){const farmLayoutMedia=window.matchMedia('(max-width:1024px)');if(farmLayoutMedia.addEventListener)farmLayoutMedia.addEventListener('change',()=>renderMarkers());else if(farmLayoutMedia.addListener)farmLayoutMedia.addListener(()=>renderMarkers());}
  STATE.showF03=$('showF03').checked;renderMarkers();renderSelectedFarmHighlight();renderAuditPins();renderAuditAreas();renderQueueHighlight();renderZones();setTimeout(()=>{for(const m of STATE.maps)m.invalidateSize();scheduleF03();},350);
  }catch(e){$('gisInfo').textContent='地圖初始化失敗：'+e.message;$('gisInfo').classList.add('error');console.error(e);}}
@@ -1752,7 +1806,7 @@ function bind(){
  }
  reloadOfflineF03(STATE.year);clearInspectPreview();$('auditPanel').hidden=true;++STATE.inspectSeq;STATE.queueSeq++;STATE.queueRows=[];STATE.queueBounds=null;STATE.queueSelectedKey=null;STATE.queueScanActive=false;$('queueScan').disabled=false;$('queueStatus').textContent='年度已更改，請重新掃描目前畫面。';STATE.queueZoneId=null;renderQueue();renderZones();scheduleF03();renderAuditPins();persist();});$('opacity').addEventListener('input',e=>{STATE.opacity=+e.target.value/100;$('opacityLabel').textContent=e.target.value+'%';if(Array.isArray(STATE.f03))for(const layer of STATE.f03)layer.setOpacity(STATE.opacity);persist();});
  $('closeEditor').addEventListener('click',closeEditor);$('editorBackdrop').addEventListener('click',closeEditor);$('editorForm').addEventListener('submit',saveEditor);$('removeLocation').addEventListener('click',removeLocation);$('removeRecord').addEventListener('click',deleteRecord);
- $('showFarmNames').checked=showFarmNames;$('showFarmNames').addEventListener('change',e=>{showFarmNames=e.target.checked;try{localStorage.setItem('pig-show-farm-names',showFarmNames?'1':'0');}catch(err){}if(!showFarmNames){clearTimeout(farmLabelTimer);STATE.farmNameGroups.forEach(g=>g.clearLayers());}else scheduleFarmNameLabels();});
+ $('showFarmNames').checked=showFarmNames;$('showFarmNames').addEventListener('change',e=>{showFarmNames=e.target.checked;try{localStorage.setItem('pig-show-farm-names',showFarmNames?'1':'0');}catch(err){}if(!showFarmNames){clearTimeout(farmLabelTimer);clearFarmLabelCanvases();}else scheduleFarmNameLabels();});
  $('pickLocation').addEventListener('click',()=>{STATE.locateId=STATE.selected;closeEditor();mode('locate');notice('請在地圖點選正確的豬場位置。');});
  for(let id of ['backupTop'])$(id).addEventListener('click',exportJSON);$('exportCsv').addEventListener('click',exportCSV);$('exportGeo').addEventListener('click',exportGeo);$('importButton').addEventListener('click',()=>$('importFile').click());$('importFile').addEventListener('change',e=>{readImport(e.target.files[0]);e.target.value='';});
  $('diagOpen').addEventListener('click',openMapDiagnosis);$('diagClose').addEventListener('click',closeMapDiagnosis);$('diagRun').addEventListener('click',runMapDiagnosis);$('acceptRun').addEventListener('click',runFieldAcceptance);$('diagCopy').addEventListener('click',diagCopy);

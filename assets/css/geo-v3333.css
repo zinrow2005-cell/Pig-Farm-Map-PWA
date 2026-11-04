@@ -42,3 +42,7 @@
 .farm-name-lite-anchor{border:0!important;background:transparent!important}
 .farm-name-lite{position:absolute;left:0;bottom:0;transform:translateX(-50%);display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 6px;border-radius:5px;background:rgba(255,254,247,.94);border:1px solid #a6c5b1;color:#164c34;font-size:11px;line-height:15px;font-weight:700;box-shadow:0 1px 4px #0003;pointer-events:none}
 @media(max-width:1024px){.farm-name-lite{font-size:10px;max-width:112px;padding:2px 4px}}
+
+/* V3.3.58: single Canvas layer instead of repeated DOM label markers. */
+.leaflet-farmNamePane,.leaflet-farmNamePane canvas{pointer-events:none!important;touch-action:none!important}
+.farm-name-canvas{display:block;position:absolute;max-width:none;user-select:none;-webkit-user-select:none}
