@@ -840,7 +840,7 @@ function renderFarmNameLabels(){
  farmLabelFrame=0;
  if(!STATE.mapReady||!showFarmNames)return clearFarmLabelCanvases();
  const mobile=window.matchMedia?.('(max-width:1024px)').matches===true;
- const minimumZoom=mobile?17:15,limit=mobile?12:50;
+ const minimumZoom=mobile?16:15,limit=mobile?12:50;
  const buckets=getFarmLabelIndex();
  for(let i=0;i<STATE.maps.length;i++){
   const map=STATE.maps[i],old=FARM_LABEL_CANVASES[i];
