@@ -28,3 +28,11 @@
 .record-mode-tag.edit{background:#eaf1fa;color:#305c8d}
 #cloudNewForm input:focus-visible,#cloudEditForm input:focus-visible{outline:2px solid #4ba57c;outline-offset:1px}
 @media(max-width:700px){.metric-intro{padding:5px 9px 0}.metric-intro span{font-size:10px}.management-route-guide{grid-template-columns:1fr}.management-route-guide>div{display:grid;grid-template-columns:30px 1fr;align-items:center;gap:2px 8px}.management-route-guide small{grid-column:2}.audit-panel #auditActions:not([hidden]){grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* V3.3.56 — 在既有豬場編輯視窗清楚區分儲存與管理員核定。 */
+.cloud-approval-summary{padding:11px 13px;border:1px solid #f0d7a4;border-radius:10px;background:#fff8eb;color:#72511d;font-size:13px;line-height:1.55;margin:10px 0}
+.cloud-approval-summary[data-state="approved"]{background:#e9f7ef;border-color:#a7dac0;color:#17563f}
+.cloud-approve-btn{background:#176b50;color:#fff;border:1px solid #176b50;border-radius:9px;padding:11px 14px;font-weight:700;cursor:pointer;min-height:44px}
+.cloud-approve-btn:hover{background:#135b44}.cloud-approve-btn:disabled{opacity:.5;cursor:not-allowed}
+.cloud-approval-help{font-size:12px;color:#5f6f69;line-height:1.55;margin:5px 0 12px}
+@media(max-width:700px){.cloud-auth-input .cloud-approve-btn{width:100%;min-height:48px}}
