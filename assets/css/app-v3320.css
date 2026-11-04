@@ -398,3 +398,33 @@
 /* The management dashboard must not push the actual editor below the fold on phones. */
 .cloud-cover.cloud-form-active .cloud-dialog > .cloud-unified-tools,
 .cloud-cover.cloud-form-active .cloud-dialog > .cloud-sync-section {display:none!important}
+
+/* V3.3.47: clear workflow steps for common editing */
+.cloud-dialog-status{margin:10px 0;padding:11px 13px;background:#e9f5ed;border:1px solid #b8ddc8;border-radius:10px;color:#245b3f;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.cloud-dialog-status[data-error="yes"]{background:#fff4e5;color:#975018;border-color:#eccb9b}
+.cloud-workflow-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.cloud-workflow-nav button{min-height:48px;padding:8px 6px;border-radius:9px;border:1px solid #d1dfd7;background:#f6f9f7;color:#325b45;font-weight:600;white-space:normal}
+.cloud-workflow-nav button[aria-selected="true"]{background:#17684e;color:#fff;border-color:#17684e}
+.cloud-workflow-hint{font-size:12px;color:#60766a;margin:6px 0 10px}
+.cloud-review-section{padding:10px 12px;margin:12px 0;background:#f7faf8;border:1px solid #d8e8df;border-radius:12px}
+.cloud-cover:not(.cloud-form-active)[data-view="manage"] #cloudSyncSection,
+.cloud-cover:not(.cloud-form-active)[data-view="manage"] #cloudReviewSection,
+.cloud-cover:not(.cloud-form-active)[data-view="review"] #cloudManageSection,
+.cloud-cover:not(.cloud-form-active)[data-view="review"] #cloudSyncSection,
+.cloud-cover:not(.cloud-form-active)[data-view="sync"] #cloudManageSection,
+.cloud-cover:not(.cloud-form-active)[data-view="sync"] #cloudReviewSection{display:none!important}
+.cloud-cover.cloud-form-active #cloudWorkflowNav,.cloud-cover.cloud-form-active .cloud-workflow-hint,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-review-section{display:none!important}
+.cloud-cover .cloud-create-entry{display:none!important}
+.cloud-advanced{margin-top:8px;padding:6px 10px;border:1px dashed #bdd2c4;border-radius:8px}
+.cloud-advanced summary{cursor:pointer;font-size:12px}
+.cloud-cover:not(.cloud-form-active) .cloud-dialog{scroll-behavior:smooth}
+@media(max-width:540px){.cloud-workflow-nav{gap:4px}.cloud-workflow-nav button{font-size:12px;padding:8px 3px}.cloud-dialog-status{font-size:12px}}
+/* Ensure native hidden works even when component display rules are present. */
+#cloudPanel [hidden]{display:none!important}
+@media(max-width:540px){
+ #cloudManageSection .cloud-auth-input{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+ #cloudManageSection .cloud-auth-input button{min-height:44px;width:auto;min-width:0;flex:none!important}
+ #cloudSyncSection .cloud-auth-input{display:grid;grid-template-columns:1fr;gap:7px}
+ #cloudSyncSection .cloud-auth-input button{min-height:44px;width:100%;flex:none!important}
+}
