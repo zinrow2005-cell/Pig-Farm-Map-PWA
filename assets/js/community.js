@@ -21,9 +21,34 @@ function setCloudView(view='manage'){
  for(const name of valid){const btn=$('cloudTab'+name[0].toUpperCase()+name.slice(1));if(btn){btn.setAttribute('aria-selected',name===view?'true':'false');}}
  if(view==='review')renderProposals();
  if(view==='sync'&&!user)syncMessage('請先使用 Google 帳號登入，才能讀取跨裝置查核。',true);
+ const hints={manage:'豬場管理：新增、搜尋與修改既有豬場。',review:'待審核定：查看待審案件與核准結果。',sync:'跨裝置查核：讀取、上傳及匯入查核紀錄。'};
+ const hint=$('cloudWorkflowHint');if(hint)hint.textContent=hints[view];
  const scroll=$('cloudWorkflowNav');if(scroll)scroll.scrollIntoView({block:'nearest'});
 }
 
+// Tabs must work even if GIS initialization or Firebase fails.
+let cloudTabsBound=false;
+function bindCloudTabs(){
+ if(cloudTabsBound)return;
+ const nav=$('cloudWorkflowNav');if(!nav)return;
+ cloudTabsBound=true;
+ nav.addEventListener('click',event=>{
+  const button=event.target.closest('button[data-cloud-view]');
+  if(!button||!nav.contains(button))return;
+  event.preventDefault();
+  const view=button.dataset.cloudView;
+  const panel=$('cloudPanel');
+  if(panel?.classList.contains('cloud-form-active')){
+   panel.classList.remove('cloud-form-active');
+   const newForm=$('cloudNewForm'),editForm=$('cloudEditForm');
+   if(newForm)newForm.hidden=true;
+   if(editForm)editForm.hidden=true;
+  }
+  setCloudView(view);
+ });
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindCloudTabs);
+else bindCloudTabs();
 function err(e){const code=String(e?.code||''); if(code.includes('permission-denied'))return '沒有資料庫存取權限：請確認 Firestore 規則已發布、Google 登入已啟用及管理員 UID 設定';
  if(code.includes('auth/unauthorized-domain'))return '目前網站網域尚未加入 Firebase Authentication 已授權網域';
  if(code.includes('popup-blocked'))return '瀏覽器擋住了 Google 登入視窗；請使用 Safari 或 Chrome 開啟網站並允許彈出視窗';
@@ -367,7 +392,7 @@ async function seed(){if(!admin||!user||!db||seedBusy)return;
 }
 async function start(options){if(started)return;started=true;hook=options;
  $('cloudOpen')?.addEventListener('click',open);$('cloudClose')?.addEventListener('click',close);
- for(const name of ['manage','review','sync']){$('cloudTab'+name[0].toUpperCase()+name.slice(1))?.addEventListener('click',()=>setCloudView(name));}
+ bindCloudTabs();
  $('cloudLoginQuick')?.addEventListener('click',()=>{if(user)open();else if(auth)signIn();else open();});
  $('mobileAuthToggle')?.addEventListener('click',()=>{if(user)open();else if(auth)signIn();else open();});
  $('cloudSignIn')?.addEventListener('click',signIn);$('cloudSignOut')?.addEventListener('click',signOut);
