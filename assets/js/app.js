@@ -2114,20 +2114,32 @@ function applyCloudFarms(rows){
  CLOUD_PARCEL_LINKS.clear();
  for(const item of rows){if(!item.auditParcelKey||CLOUD_DELETED_IDS.has(item.uid))continue;const key=item.auditParcelKey;const existing=CLOUD_PARCEL_LINKS.get(key);CLOUD_PARCEL_LINKS.set(key,existing===undefined?item.uid:null);}
  let changed=false, auditChanged=false;
- for(const cloud of rows){if(CLOUD_DELETED_IDS.has(cloud.uid))continue;let r=STATE.records.find(x=>x.uid===cloud.uid);if(!r){const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;r=C.normalize({uid:cloud.uid,name:cloud.name||'未命名豬場',county:cloud.county||'雲林縣',town:cloud.town||'',address:cloud.address||'',geometry:loc,category:cloud.auditDecision==='maybe'?'maybe':'pig',review:'pending',source:'管理員雲端新增',createdAt:new Date().toISOString()});STATE.records.push(r);changed=true;}
+ for(const cloud of rows){if(CLOUD_DELETED_IDS.has(cloud.uid))continue;let r=STATE.records.find(x=>x.uid===cloud.uid);if(!r){const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;r=C.normalize({uid:cloud.uid,name:cloud.name||'未命名豬場',county:cloud.county||'雲林縣',town:cloud.town||'',address:cloud.address||'',geometry:loc,category:cloud.auditDecision==='maybe'?'maybe':'pig',review:['pig','maybe'].includes(cloud.auditDecision)&&loc?'approved':'pending',source:'管理員雲端新增',createdAt:new Date().toISOString()});STATE.records.push(r);changed=true;}
   const loc=(cloud.lat!=null&&cloud.lng!=null&&C.coord(Number(cloud.lat),Number(cloud.lng)))?{type:'Point',coordinates:[Number(cloud.lng),Number(cloud.lat)]}:null;
   if(['pig','maybe'].includes(cloud.auditDecision)&&r.category!==cloud.auditDecision){r.category=cloud.auditDecision;changed=true;}
-  if(['pig','maybe'].includes(cloud.auditDecision)&&cloud.auditParcelKey&&r.review!=='approved'){r.review='approved';changed=true;}
+  // Admin confirmation is a farm-level decision; absence of an F03 parcel ID
+  // must not leave an otherwise valid, verified farm as '待定位／未核定'.
+  // Seed records without an explicit decision keep their legacy status.
+  if(['pig','maybe'].includes(cloud.auditDecision)&&loc&&r.review!=='approved'){
+   r.review='approved';r.lastReviewed=new Date().toISOString();changed=true;
+  }
   if(['pig','maybe'].includes(cloud.auditDecision)&&promoteAuditToFarm(cloud.auditParcelKey||'',cloud.uid))auditChanged=true;
   const prior=C.center(r),now=loc?[loc.coordinates[1],loc.coordinates[0]]:null;
-  if(r.name!==cloud.name||r.county!==cloud.county||r.town!==cloud.town||r.address!==cloud.address||JSON.stringify(prior)!==JSON.stringify(now)){
-   Object.assign(r,{name:cloud.name||r.name,county:cloud.county||r.county,town:cloud.town||r.town,address:cloud.address??''});
+  // Compare the same normalized values that will actually be written.
+  // Optional fields missing from an older Firestore document must not trigger
+  // a spurious update and local snapshot write on every identical listener event.
+  const nextName=cloud.name||r.name,nextCounty=cloud.county||r.county,
+   nextTown=cloud.town||r.town,nextAddress=cloud.address??'';
+  if(r.name!==nextName||r.county!==nextCounty||r.town!==nextTown||r.address!==nextAddress||JSON.stringify(prior)!==JSON.stringify(now)){
+   Object.assign(r,{name:nextName,county:nextCounty,town:nextTown,address:nextAddress});
    if(r.geometry?.type!=='Polygon')r.geometry=loc;
    changed=true;
   }
  }
  if(changed||auditChanged){updateTownOptions();renderStats();renderList();if(STATE.mapReady){renderMarkers();renderAuditPins();}F03_MATCH.dirty=true;}
- if(auditChanged)persist();
+ // Persist cloud-confirmed field and status changes as well as audit promotions.
+ // Otherwise an offline reload can resurrect a stale '待定位／未核定' local snapshot.
+ if(changed||auditChanged)persist();
 }
 // Cloud review import is additive only: never overwrites device-local reviews.
 // Imports contain no polygon geometry; local user can re-query the official outline.

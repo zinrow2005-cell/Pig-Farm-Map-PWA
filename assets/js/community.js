@@ -296,6 +296,10 @@ async function createFarm(event){
  if(admin&&nearby.length>1){status(`附近或相同地塊已有 ${nearby.length} 筆正式紀錄：${nearby.slice(0,3).map(f=>f.name||f.uid).join('、')}。請先從清單選擇正確豬場進行「編輯」，暫停新增以避免重複。`,true);return;}
  if(admin&&farmsFromCache){status('正在等待伺服器同步正式豬場清單，尚不能安全判斷重複位置。請先按「↻ 同步」再儲存。',true);return;}
  if(!admin&&nearby.length){status('此位置已有正式豬場紀錄，請從清單選取該牧場後提交資料更正，避免重複送出新增申請。',true);return;}
+ const exactNames=(hook?.findRecords?.(name)||[]).filter(r=>
+  clean(r.name,150)===name&&clean(r.town,40)===town&&
+  !nearby.some(f=>f.uid===r.uid));
+ if(admin&&exactNames.length){status('名冊內已有同名同鄉鎮豬場「'+name+'」。請使用「搜尋既有豬場」選取原紀錄，再套用地圖位置及直接核定；為防止總數增加，本次停止新增。',true);return;}
  const candidate=admin&&nearby.length===1?nearby[0]:null;
  const targetUid=candidate?.uid||identifier;
  const action=candidate?'更新既有正式紀錄':'新增正式豬場';
@@ -375,7 +379,42 @@ async function submit(event){event.preventDefault();if(editBusy)return;if(!user|
  if(!proposedName||!proposedCounty||!proposedTown){status('豬場名稱、縣市及鄉鎮不能留空',true);return;}
  const payload={farmUid:activeFarm,baseVersion:current.version,parcelKey:clean(auditContext?.parcelKey||current.auditParcelKey,160),decision:clean(auditContext?.decision||current.auditDecision||'pig',12),proposedName,proposedCounty,proposedTown,proposedAddress:clean($('cloudAddress').value,220),proposedLat:la,proposedLng:lo,note:clean($('cloudNote').value,500),submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null};
  const btn=$('cloudSubmit');editBusy=true;btn.disabled=true;status('正在提交至 Google Firestore…');
- try{if(admin){await F.runTransaction(db,async tx=>{const ref=F.doc(db,'farms',activeFarm),snap=await tx.get(ref);if(!snap.exists())throw Error('找不到正式豬場');const x=snap.data();tx.update(ref,{name:proposedName,county:proposedCounty,town:proposedTown,address:payload.proposedAddress,lat:la,lng:lo,version:x.version+1,updatedAt:F.serverTimestamp()});});status('管理員已直接更新正式豬場資料。');updateLinkage();}else{await F.addDoc(F.collection(db,'suggestions'),payload);status('豬場資料已提交審查，核准後才更改正式地圖。');} $('cloudEditForm').hidden=true;if(auditContext){const ctx=auditContext;auditContext=null;if(admin)await ctx.onSaved?.({uid:activeFarm,status:'approved'});}unifiedFlow=null;}
+ try{if(admin){
+  // V3.3.54: a map judgment on an EXISTING farm must commit the point,
+  // the human decision and the parcel link to the SAME document/UID.
+  // Do not rely on an earlier locally cached review to mark it approved.
+  const context=auditContext;
+  const decision=context&&['pig','maybe'].includes(context.decision)?context.decision:null;
+  const parcelKey=clean(context?.parcelKey||current.auditParcelKey||'',160);
+  let updated;
+  await F.runTransaction(db,async tx=>{
+   const ref=F.doc(db,'farms',activeFarm),snap=await tx.get(ref);
+   if(!snap.exists())throw Error('找不到正式豬場');
+   const x=snap.data();
+   updated={...x,uid:activeFarm,name:proposedName,county:proposedCounty,town:proposedTown,
+    address:payload.proposedAddress,lat:la,lng:lo,version:Number(x.version||1)+1};
+   const changes={name:updated.name,county:updated.county,town:updated.town,
+    address:updated.address,lat:updated.lat,lng:updated.lng,version:updated.version,
+    updatedAt:F.serverTimestamp()};
+   if(decision){changes.auditDecision=decision;changes.auditParcelKey=parcelKey;
+    updated.auditDecision=decision;updated.auditParcelKey=parcelKey;}
+   tx.update(ref,changes);
+  });
+  // Immediately update the existing row (no appended farm record).
+  liveFarms.set(activeFarm,updated);hook?.applyApproved?.(publicRows());
+  const ctx=auditContext;
+  let localAuditOk=true;
+  if(ctx?.onSaved){localAuditOk=(await ctx.onSaved({uid:activeFarm,status:'approved',decision:decision||updated.auditDecision||'pig',parcelKey}))!==false;}
+  auditContext=null;
+  status(localAuditOk?'管理員已更新原豬場並完成核定；座標、清單與統計已同步刷新。':'雲端原豬場已核定，但本機查核記錄尚未保存成功，請先備份並重新同步。',!localAuditOk);
+  updateLinkage(parcelKey);
+  if(localAuditOk){$('cloudEditForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');
+   hook?.notifyApproved?.('已核定原豬場「'+proposedName+'」；不會新增第二筆。');
+   hook?.focusApproved?.(activeFarm);unifiedFlow=null;}
+ }else{await F.addDoc(F.collection(db,'suggestions'),payload);
+  status('豬場資料已提交審查，核准後才更改正式地圖。');
+  $('cloudEditForm').hidden=true;auditContext=null;unifiedFlow=null;
+ }}
  catch(e){status('提交失敗：'+err(e)+'；請不要當成已成功同步。',true);}finally{editBusy=false;renderUser();}
 }
 async function review(id,approve,kind='edit'){if(kind==='new')return reviewNew(id,approve);if(!admin||!adminReady||!user||!db)return;const p=proposals.find(x=>x.id===id);if(!p||p.status!=='pending')return;
@@ -388,7 +427,7 @@ async function review(id,approve,kind='edit'){if(kind==='new')return reviewNew(i
    const s=sSnap.data(),farm=fSnap.data();if(s.status!=='pending')throw Error('這筆修改已被處理，請重新確認');
    if(approve&&farm.version!==s.baseVersion)throw Error('場址已有其他核准版本，不能覆蓋新資料；請重新提交建議');
    if(approve){const update={name:s.proposedName,county:s.proposedCounty,town:s.proposedTown,address:s.proposedAddress,lat:s.proposedLat,lng:s.proposedLng,version:farm.version+1,approvedSuggestionId:id,updatedAt:F.serverTimestamp()};
-    if(s.parcelKey){update.auditParcelKey=s.parcelKey;update.auditDecision=['pig','maybe'].includes(s.decision)?s.decision:'pig';}
+    if(['pig','maybe'].includes(s.decision)){update.auditParcelKey=clean(s.parcelKey||farm.auditParcelKey||'',160);update.auditDecision=s.decision;}
     tx.update(fRef,update);
    }
    tx.update(sRef,{status:approve?'approved':'rejected',reviewedBy:user.uid,reviewedAt:F.serverTimestamp()});
