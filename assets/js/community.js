@@ -9,6 +9,7 @@ let auth=null,db=null,A=null,F=null,user=null,admin=false,adminReady=false,hook=
 let liveFarms=new Map(),proposals=[],activeFarm=null,unsubFarms=null,unsubProposals=null,loggedInSeq=0;
 let farmsFromCache=true,seedBusy=false,newPoint=null,newBusy=false,auditContext=null,unsubNewSubmissions=null,newSubmissions=[];
 let deletedFarmIds=new Set(),unsubDeleted=null,deleteBusy=false,editBusy=false;
+let unifiedFlow=null;
 let sharedAudits=[],syncBusy=false; // cloud copies never replace local data without explicit import
 function status(msg,bad=false){
  for(const id of ['cloudStatus','cloudDialogStatus']){const el=$(id);if(el){el.textContent=msg;el.dataset.error=bad?'yes':'no';}}
@@ -47,8 +48,24 @@ function bindCloudTabs(){
   setCloudView(view);
  });
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindCloudTabs);
-else bindCloudTabs();
+function initCloudFormNavigation(){
+ const panel=$('cloudPanel'),back=$('cloudBackToWork'),bar=$('cloudFormNavigation');
+ if(!panel||!back||!bar||back.dataset.bound==='1')return;
+ back.dataset.bound='1';
+ back.addEventListener('click',()=>{
+  if(unifiedFlow){unifiedBack();return;}
+  const form=(!$('cloudEditForm')?.hidden)?$('cloudEditForm'):$('cloudNewForm');
+  if(form&&!form.hidden){const active=document.activeElement;if(form.contains(active)&&active?.blur)active.blur();}
+  panel.classList.remove('cloud-form-active');
+  $('cloudEditForm').hidden=true;$('cloudNewForm').hidden=true;
+  setCloudView('manage');
+  const n=$('cloudDialogStatus');if(n)n.textContent='已返回豬場管理。可切換上方三個工作分頁。';
+ });
+ new MutationObserver(()=>{bar.hidden=!panel.classList.contains('cloud-form-active');}).observe(panel,{attributes:true,attributeFilter:['class']});
+ bar.hidden=!panel.classList.contains('cloud-form-active');
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{bindCloudTabs();initCloudFormNavigation();});
+else {bindCloudTabs();initCloudFormNavigation();}
 function err(e){const code=String(e?.code||''); if(code.includes('permission-denied'))return '沒有資料庫存取權限：請確認 Firestore 規則已發布、Google 登入已啟用及管理員 UID 設定';
  if(code.includes('auth/unauthorized-domain'))return '目前網站網域尚未加入 Firebase Authentication 已授權網域';
  if(code.includes('popup-blocked'))return '瀏覽器擋住了 Google 登入視窗；請使用 Safari 或 Chrome 開啟網站並允許彈出視窗';
@@ -57,7 +74,7 @@ function err(e){const code=String(e?.code||''); if(code.includes('permission-den
  return clean(e?.message||e,200);}
 function enabled(){return configured;}
 function open(){const p=$('cloudPanel');if(!p)return;p.hidden=false;renderUser();renderProposals();updateLinkage();setCloudView('manage');if(!configured)status('尚未填入 Firebase Web 設定；目前仍使用本機豬場資料，沒有雲端同步',true);}
-function close(){if($('cloudPanel')){$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');}auditContext=null;}
+function close(){if($('cloudPanel')){$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');}if($('cloudUnifiedWizard'))$('cloudUnifiedWizard').hidden=true;unifiedFlow=null;auditContext=null;}
 // Shared identity: the parcelKey is the stable link across local review,
 // farmSubmissions and farms.auditParcelKey. Point-only records retain an explicit key.
 function parcelSummary(parcelKey=''){
@@ -176,6 +193,7 @@ function linkExistingFromPoint(uid){
  const lat=Number(latText),lng=Number(lngText);
  if(!Number.isFinite(lat)||!Number.isFinite(lng))return status('座標不完整，請先到地圖選點。',true);
  editAt(uid,lat,lng);
+ if(unifiedFlow){$('cloudEditWizardBack').hidden=false;$('cloudEditWizardProgress').hidden=false;}
 }
 function beginNew(lat=null,lng=null){
  open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
@@ -263,7 +281,7 @@ async function createFarm(event){
   if(auditContext){const ctx=auditContext;auditContext=null;if(admin&&ctx.onSaved)localAuditOkay=(await ctx.onSaved(result))!==false;}
   const message=!localAuditOkay?`豬場「${name}」已寫入雲端，但本機地塊查核尚未儲存成功。請先備份本機資料並檢查。`:admin?`已${candidate?'更新':'建立'}正式豬場「${name}」（ID：${targetUid}）。`:`「${name}」已送交管理員審查；未加入正式豬場筆數。`;
   status(message,!localAuditOkay);
-  if(localAuditOkay){$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');hook?.notifyApproved?.(message);if(admin)hook?.focusApproved?.(targetUid);}
+  if(localAuditOkay){unifiedFlow=null;$('cloudUnifiedWizard').hidden=true;$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');hook?.notifyApproved?.(message);if(admin)hook?.focusApproved?.(targetUid);}
  }catch(e){status('儲存未完成：'+err(e)+'。表單仍保留，請檢查後重試；不會自行再新增。',true);}
  finally{newBusy=false;renderUser();}
 }
@@ -295,7 +313,7 @@ async function submit(event){event.preventDefault();if(editBusy)return;if(!user|
  if(!proposedName||!proposedCounty||!proposedTown){status('豬場名稱、縣市及鄉鎮不能留空',true);return;}
  const payload={farmUid:activeFarm,baseVersion:current.version,parcelKey:clean(auditContext?.parcelKey||current.auditParcelKey,160),decision:clean(auditContext?.decision||current.auditDecision||'pig',12),proposedName,proposedCounty,proposedTown,proposedAddress:clean($('cloudAddress').value,220),proposedLat:la,proposedLng:lo,note:clean($('cloudNote').value,500),submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null};
  const btn=$('cloudSubmit');editBusy=true;btn.disabled=true;status('正在提交至 Google Firestore…');
- try{if(admin){await F.runTransaction(db,async tx=>{const ref=F.doc(db,'farms',activeFarm),snap=await tx.get(ref);if(!snap.exists())throw Error('找不到正式豬場');const x=snap.data();tx.update(ref,{name:proposedName,county:proposedCounty,town:proposedTown,address:payload.proposedAddress,lat:la,lng:lo,version:x.version+1,updatedAt:F.serverTimestamp()});});status('管理員已直接更新正式豬場資料。');updateLinkage();}else{await F.addDoc(F.collection(db,'suggestions'),payload);status('豬場資料已提交審查，核准後才更改正式地圖。');} $('cloudEditForm').hidden=true;if(auditContext){const ctx=auditContext;auditContext=null;if(admin)await ctx.onSaved?.({uid:activeFarm,status:'approved'});}}
+ try{if(admin){await F.runTransaction(db,async tx=>{const ref=F.doc(db,'farms',activeFarm),snap=await tx.get(ref);if(!snap.exists())throw Error('找不到正式豬場');const x=snap.data();tx.update(ref,{name:proposedName,county:proposedCounty,town:proposedTown,address:payload.proposedAddress,lat:la,lng:lo,version:x.version+1,updatedAt:F.serverTimestamp()});});status('管理員已直接更新正式豬場資料。');updateLinkage();}else{await F.addDoc(F.collection(db,'suggestions'),payload);status('豬場資料已提交審查，核准後才更改正式地圖。');} $('cloudEditForm').hidden=true;if(auditContext){const ctx=auditContext;auditContext=null;if(admin)await ctx.onSaved?.({uid:activeFarm,status:'approved'});}unifiedFlow=null;}
  catch(e){status('提交失敗：'+err(e)+'；請不要當成已成功同步。',true);}finally{editBusy=false;renderUser();}
 }
 async function review(id,approve,kind='edit'){if(kind==='new')return reviewNew(id,approve);if(!admin||!adminReady||!user||!db)return;const p=proposals.find(x=>x.id===id);if(!p||p.status!=='pending')return;
@@ -327,6 +345,52 @@ async function reviewNew(id,approve){
   tx.update(ref,{status:approve?'approved':'rejected',reviewedBy:user.uid,reviewedAt:F.serverTimestamp()});
  });status(approve?'已核准：送出者填寫的名稱、地址與座標已建立正式豬場。':'已退回申請。');}
  catch(e){status('審核失敗：'+err(e),true);}
+}
+// The integrated workflow keeps a single dialog from parcel selection through saving.
+// Only the acknowledged cloud commit promotes an audit to a formal farm.
+function beginUnified(lat,lng,parcelKey='',onSaved=null,initialDecision=''){
+ if(!Number.isFinite(Number(lat))||!Number.isFinite(Number(lng)))return false;
+ unifiedFlow={lat:Number(lat),lng:Number(lng),parcelKey:clean(parcelKey,160),onSaved,initialDecision};
+ auditContext=null;open();setCloudView('manage');
+ $('cloudPanel').classList.add('cloud-form-active');
+ $('cloudNewForm').hidden=true;$('cloudEditForm').hidden=true;
+ $('cloudUnifiedWizard').hidden=false;
+ $('cloudWizardNote').value='';
+ $('cloudWizardParcel').textContent=(parcelKey?'地塊：'+parcelKey+' · ':'人工地圖點 · ')+Number(lat).toFixed(6)+', '+Number(lng).toFixed(6);
+ $('cloudWizardStatus').textContent=initialDecision?'已選擇地塊，請確認判定類別，然後進入資料表單。':'請先選擇判定類別。';
+ $('cloudWizardBack').hidden=true;$('cloudEditWizardBack').hidden=true;
+ $('cloudEditWizardProgress').hidden=true;
+ status('步驟 2／4：先判定土地用途，再一次完成資料填寫及核定／送審。');
+ return true;
+}
+function unifiedBack(){
+ if(!unifiedFlow)return;
+ $('cloudNewForm').hidden=true;$('cloudEditForm').hidden=true;
+ $('cloudUnifiedWizard').hidden=false;
+ $('cloudPanel').classList.add('cloud-form-active');
+ auditContext=null;status('已返回判定步驟，尚未送出或更動正式豬場。');
+}
+async function unifiedDecision(decision){
+ const flow=unifiedFlow;if(!flow)return;
+ if(!['pig','maybe','other','defer'].includes(decision))return;
+ const note=clean($('cloudWizardNote').value,500);
+ if(decision==='other'||decision==='defer'){
+  // No formal farm is created for a negative or deferred judgment.
+  try{const outcome=await flow.onSaved?.({decision,status:'local-only',note});
+   if(outcome===false)throw Error('本機紀錄尚未安全保存');
+   unifiedFlow=null;close();status('地塊判定已保存為本機查核；沒有新增正式豬場。');
+  }catch(e){$('cloudWizardStatus').textContent='儲存失敗：'+err(e)+'；資料尚未建立，請重試。';}
+  return;
+ }
+ if(!user||!db||!adminReady){$('cloudWizardStatus').textContent='請先 Google 登入，並等待身分驗證完成。未登入不能正式送審。';status('請先登入 Google 後再繼續',true);return;}
+ $('cloudUnifiedWizard').hidden=true;
+ const ok=beginAudit(flow.lat,flow.lng,decision,'',note,flow.onSaved,flow.parcelKey);
+ if(!ok){$('cloudUnifiedWizard').hidden=false;return;}
+ $('cloudWizardBack').hidden=$('cloudNewForm').hidden;
+ $('cloudEditWizardBack').hidden=$('cloudEditForm').hidden;
+ $('cloudEditWizardProgress').hidden=$('cloudEditForm').hidden;
+ $('cloudNewDecision').value=decision;
+ status(admin?'步驟 3／4：填寫／連結舊場，確認後管理員直接核定。':'步驟 3／4：填寫／連結舊場，確認後送交管理員審核。');
 }
 function beginAudit(lat,lng,decision,linkedUid,note,onSaved,parcelKey=''){
  auditContext=null;
@@ -398,6 +462,8 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudSignIn')?.addEventListener('click',signIn);$('cloudSignOut')?.addEventListener('click',signOut);
  $('cloudRefresh')?.addEventListener('click',refresh);$('cloudSeed')?.addEventListener('click',seed);
  $('cloudEditForm')?.addEventListener('submit',submit);
+ $('cloudUnifiedWizard')?.addEventListener('click',e=>{const button=e.target.closest('[data-wizard-decision]');if(button)unifiedDecision(button.dataset.wizardDecision);});
+ $('cloudWizardCancel')?.addEventListener('click',close);$('cloudWizardBack')?.addEventListener('click',unifiedBack);$('cloudEditWizardBack')?.addEventListener('click',unifiedBack);
  $('cloudNewOpen')?.addEventListener('click',()=>beginNew());
  $('cloudLinkSearch')?.addEventListener('input',renderLinkMatches);$('cloudLinkResults')?.addEventListener('click',e=>{const b=e.target.closest('[data-link-existing]');if(b)linkExistingFromPoint(b.dataset.linkExisting);});$('cloudPickExisting')?.addEventListener('click',()=>{if(!activeFarm)return;const uid=activeFarm;close();hook?.pickExistingOnMap?.(uid);});
  $('cloudManageNew')?.addEventListener('click',()=>{setCloudView('manage');beginNew();});
@@ -408,7 +474,7 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudSyncImport')?.addEventListener('click',()=>{setCloudView('sync');importSharedAudits();});
  $('cloudSyncList')?.addEventListener('click',e=>{const b=e.target.closest('[data-cloud-audit-delete]');if(b)deleteSharedAudit(b.dataset.cloudAuditDelete);});
  $('cloudNewForm')?.addEventListener('submit',createFarm);$('cloudDelete')?.addEventListener('click',()=>deleteActiveFarm());
- $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');newPoint=null;auditContext=null;});
+ $('cloudNewCancel')?.addEventListener('click',()=>{$('cloudNewForm').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');newPoint=null;auditContext=null;unifiedFlow=null;});
  $('cloudProposals')?.addEventListener('click',e=>{const target=e.target.closest('[data-approve],[data-reject]');if(target)review(target.dataset.approve||target.dataset.reject,!!target.dataset.approve,target.dataset.kind||'edit');});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('cloudPanel').hidden)close();});
  const seedButton=$('cloudSeed');if(seedButton){const details=document.createElement('details');details.className='cloud-advanced';details.innerHTML='<summary>進階管理：初始化名冊（一般操作不需要）</summary><p>僅限雲端資料庫確實缺少初始名冊時使用，切勿反覆初始化。</p>';seedButton.parentNode?.append(details);details.append(seedButton);}
@@ -423,7 +489,7 @@ async function start(options){if(started)return;started=true;hook=options;
  subscribeDeleted();subscribeFarms();A.onAuthStateChanged(auth,u=>{onUserChanged(u).catch(e=>status(err(e),true));},e=>status('Firebase Authentication 發生問題：'+err(e),true));
  }catch(e){status('Firebase 啟動失敗：'+err(e)+'。沒有啟用共用同步。',true);}
 }
-root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},publishAudit,start,open,edit,beginNew,beginAudit,editAt,pull:refresh,
+root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},publishAudit,start,open,edit,beginNew,beginAudit,beginUnified,editAt,pull:refresh,
  deletionInfo(uid){return {isCloud:liveFarms.has(uid),canDelete:!!(user&&admin&&adminReady&&db&&liveFarms.has(uid))};},
  deleteFarm(uid){return deleteActiveFarm(uid);}};
 })(window);

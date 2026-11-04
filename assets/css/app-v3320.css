@@ -428,3 +428,26 @@
  #cloudSyncSection .cloud-auth-input{display:grid;grid-template-columns:1fr;gap:7px}
  #cloudSyncSection .cloud-auth-input button{min-height:44px;width:100%;flex:none!important}
 }
+
+/* V3.3.49: simplified land review and clear edit navigation */
+.cloud-form-navigation{margin:10px 0;padding:9px 11px;border-radius:10px;background:#eef6f1;border:1px solid #c9dfd0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cloud-form-navigation[hidden],#auditAdvancedBody[hidden]{display:none!important}
+.cloud-form-navigation button{background:#fff;border:1px solid #91baa5;border-radius:8px;color:#145e47;padding:9px 12px;font-weight:650;min-height:40px}
+.cloud-form-navigation span{font-size:12px;color:#60786b;flex:1;min-width:190px}
+.audit-quick-hint{padding:9px 10px!important;border-radius:8px;background:#ecf6ef;color:#235d45;font-size:12px;margin:10px 0!important}
+.audit-advanced-toggle{display:block;width:100%;margin:10px 0;padding:11px!important;border:1px solid #bfd7c9;background:#f3f9f5;color:#225841;border-radius:9px;font-weight:650;text-align:left;min-height:42px}
+#auditAdvancedBody{border:1px solid #e0eae3;border-radius:10px;padding:10px;margin:8px 0;background:#fbfdfb}
+.audit-panel #auditActions button[data-audit]{font-weight:650;min-height:42px}
+@media(max-width:700px){.cloud-form-navigation{align-items:stretch}.cloud-form-navigation button{width:100%}.audit-advanced-toggle{min-height:44px}}
+
+/* V3.3.50: single-dialog parcel-to-approval wizard */
+#cloudPanel .cloud-unified-wizard[hidden]{display:none!important}
+.cloud-unified-wizard{padding:16px;background:#f5faf7;border:1px solid #b6d7c4;border-radius:14px;margin:14px 0}
+.wizard-progress,.wizard-form-progress{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;color:#50685b;font-size:12px}
+.wizard-progress span{padding:6px 8px;border-radius:6px;background:#e4ece7}.wizard-progress .active{background:#c9e8d6;color:#115637;font-weight:700}
+.wizard-decisions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 16px}.wizard-decisions button{min-height:48px;white-space:normal}
+.cloud-unified-wizard textarea{display:block;box-sizing:border-box;width:100%;margin:8px 0;border:1px solid #b9cec1;border-radius:8px;padding:9px}
+.wizard-footer{display:flex;justify-content:flex-end;margin-top:12px}
+.cloud-cover.cloud-form-active .cloud-dialog > #cloudUnifiedWizard:not([hidden]){display:block!important}
+.cloud-cover.cloud-form-active .cloud-dialog > form[hidden]{display:none!important}
+@media(max-width:520px){.wizard-progress{gap:3px}.wizard-progress span{font-size:11px;padding:5px}.wizard-decisions{grid-template-columns:1fr 1fr}}

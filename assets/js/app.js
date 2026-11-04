@@ -753,7 +753,7 @@ function markFarmParcelAt(lat,lng){
  STATE.inspectPoint=[lat,lng];STATE.inspectParcel=parcel||{key:'MANUAL-'+Math.round(lat*1e6)+'-'+Math.round(lng*1e6),year:STATE.year,source:'manual',objectId:null,geometry:null};
  STATE.queueSelectedKey=null;STATE.auditMatchCleared=true;
  $('auditNeighbors').value='';$('auditRemarks').value='';
- const result=window.PigCommunity.beginAudit(lat,lng,'pig','', '',res=>saveAudit(res.decision||'pig',res),STATE.inspectParcel.key);
+ const result=window.PigCommunity.beginUnified(lat,lng,STATE.inspectParcel.key,async res=>{if(res?.note!==undefined)$('auditRemarks').value=res.note;return saveAudit(res.decision||'pig',res);});
  if(result){$('auditPanel').hidden=true;clearInspectPreview();}
 }
 function clickedMap(e){if(STATE.tool==='point'){mode('browse');markFarmParcelAt(e.latlng.lat,e.latlng.lng);}else if(STATE.tool==='locate'){let id=STATE.locateId;STATE.locateId=null;mode('browse');if(window.PigCommunity?.enabled){window.PigCommunity.editAt(id,e.latlng.lat,e.latlng.lng);}else createPointAt(e.latlng.lat,e.latlng.lng,id);}else if(STATE.tool==='poly'){STATE.draw.push([e.latlng.lat,e.latlng.lng]);refreshDraw();}else if(STATE.tool==='inspect'){inspectAt(e.latlng.lat,e.latlng.lng);} }
@@ -1703,7 +1703,7 @@ function bind(){
  for(const el of document.querySelectorAll('[data-view]'))el.addEventListener('click',()=>changeView(el.dataset.view));
  for(const el of document.querySelectorAll('[data-tool]'))el.addEventListener('click',()=>mode(el.dataset.tool));
  $('addCenter').addEventListener('click',()=>{let c=getMapCenter();createPointAt(c.lat,c.lng);});$('inspectCenter').addEventListener('click',()=>{let c=STATE.maps[STATE.view==='aerial'?1:0]?.getCenter()||getMapCenter();inspectAt(c.lat,c.lng);});$('retryMaps').addEventListener('click',()=>restartBaseMaps(false));$('backupMaps').addEventListener('click',()=>restartBaseMaps(true));$('goTuku').addEventListener('click',()=>goto([23.705,120.398],13));$('goUserAtis').addEventListener('click',()=>goto([23.60546820286082,120.52590414505026],15));
- $('headATIS').addEventListener('click',()=>openAtis(getMapCenter()));$('auditATIS').addEventListener('click',()=>STATE.inspectPoint&&openAtis(STATE.inspectPoint));$('auditClose').addEventListener('click',()=>{resetSnapAssist();++STATE.inspectSeq;$('auditPanel').hidden=true;setAuditSheetPeeking(false);clearInspectPreview();});$('auditSheetToggle').addEventListener('click',()=>setAuditSheetPeeking(!$('auditPanel').classList.contains('is-peeking')));$('auditFocus').addEventListener('click',focusInspectGeometry);$('auditMakePoint').addEventListener('click',()=>{if(!STATE.inspectPoint)return;const [lat,lng]=STATE.inspectPoint;$('auditPanel').hidden=true;clearInspectPreview();mode('browse');createPointAt(lat,lng);});document.querySelectorAll('[data-audit]').forEach(el=>el.addEventListener('click',()=>{const decision=el.dataset.audit;if(['pig','maybe'].includes(decision)&&window.PigCommunity?.enabled){const pos=STATE.inspectPoint;if(!pos)return notice('請先點選地圖位置。');window.PigCommunity.beginAudit(pos[0],pos[1],decision,$('auditNeighbors').value,$('auditRemarks').value, result=>saveAudit(decision,result),STATE.inspectParcel?.key||'');}else saveAudit(decision);})); $('recordAtis').addEventListener('click',()=>{let r=STATE.records.find(x=>x.uid===STATE.selected);const c=C.center(r);if(c)openAtis(c);else notice('此紀錄尚無座標，請先定位。');});
+ $('headATIS').addEventListener('click',()=>openAtis(getMapCenter()));$('auditATIS').addEventListener('click',()=>STATE.inspectPoint&&openAtis(STATE.inspectPoint));$('auditClose').addEventListener('click',()=>{resetSnapAssist();++STATE.inspectSeq;$('auditPanel').hidden=true;setAuditSheetPeeking(false);clearInspectPreview();});$('auditSheetToggle').addEventListener('click',()=>setAuditSheetPeeking(!$('auditPanel').classList.contains('is-peeking')));$('auditFocus').addEventListener('click',focusInspectGeometry);$('auditMakePoint').addEventListener('click',()=>{if(!STATE.inspectPoint)return;const [lat,lng]=STATE.inspectPoint;$('auditPanel').hidden=true;clearInspectPreview();mode('browse');createPointAt(lat,lng);});document.querySelectorAll('[data-audit]').forEach(el=>el.addEventListener('click',()=>{const decision=el.dataset.audit;if(['pig','maybe'].includes(decision)&&window.PigCommunity?.enabled){const pos=STATE.inspectPoint;if(!pos)return notice('請先點選地圖位置。');window.PigCommunity.beginUnified(pos[0],pos[1],STATE.inspectParcel?.key||'',async result=>{if(result?.note!==undefined)$('auditRemarks').value=result.note;return saveAudit(result.decision||decision,result);},decision);}else saveAudit(decision);})); $('recordAtis').addEventListener('click',()=>{let r=STATE.records.find(x=>x.uid===STATE.selected);const c=C.center(r);if(c)openAtis(c);else notice('此紀錄尚無座標，請先定位。');});
  $('finishPoly').addEventListener('click',finishPoly);$('undoPoly').addEventListener('click',()=>{STATE.draw.pop();refreshDraw();});$('cancelPoly').addEventListener('click',()=>mode('browse'));
  $('f03Reload').addEventListener('click',reloadF03Tiles);$('f03Coverage').addEventListener('click',()=>{openMapDiagnosis();inspectF03Coverage();});$('diagCoverage').addEventListener('click',inspectF03Coverage);
  $('showF03').addEventListener('change',e=>{STATE.showF03=e.target.checked;refreshF03();updateF03YearInfo();persist();});$('f03Year').addEventListener('change',e=>{STATE.year=+e.target.value;
@@ -2178,3 +2178,19 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
 /* V3.3.31: resize Leaflet maps after desktop sidebar toggles. */
 document.addEventListener("desktop-layout-change",()=>setTimeout(()=>{try{if(STATE.mapReady)for(const m of STATE.maps)m.invalidateSize()}catch(e){console.warn("Map resize:",e)}},180));
+
+// V3.3.50 - independent progressive disclosure for audit details.
+(function(){
+ const start=()=>{
+  const button=document.getElementById('auditAdvancedToggle');
+  const body=document.getElementById('auditAdvancedBody');
+  if(!button||!body||button.dataset.bound==='1')return;
+  button.dataset.bound='1';
+  button.addEventListener('click',()=>{
+   body.hidden=!body.hidden;
+   button.setAttribute('aria-expanded',String(!body.hidden));
+   button.textContent=body.hidden?'⌄ 展開附近查核與既有豬場比對':'⌃ 收起進階比對';
+  });
+ };
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();
