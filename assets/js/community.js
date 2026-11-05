@@ -343,14 +343,15 @@ async function createFarm(event){
    result={uid:targetUid,status:'approved',name,county,town,address,lat,lng,decision,parcelKey};
   } else {
    const submissionRef=F.doc(db,'farmSubmissions',parcelKey?`parcel-${stableKey(user.uid+':'+parcelKey)}`:`point-${stableKey(user.uid+':'+identifier)}`);
-   await F.runTransaction(db,async tx=>{
-    const snap=await tx.get(submissionRef);
-    if(snap.exists())throw Error('此位置已有送審紀錄（狀態：'+(snap.data()?.status||'未知')+'），請從共同編輯查看，不會重複送審。');
-    const data={proposedName:name,proposedCounty:county,proposedTown:town,proposedAddress:address,
-      proposedLat:lat,proposedLng:lng,decision,parcelKey,note:clean(auditContext?.note,500),
-      submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null};
-    tx.set(submissionRef,data);
-   });
+   // Do not read a not-yet-created farmSubmissions document first: the
+   // owner-only GET rule needs resource.data and rejects a missing document.
+   // A deterministic document ID plus create-only security rules means the
+   // first setDoc is CREATE and later attempts are UPDATE (denied to users).
+   // This safely prevents duplicates without a preflight read.
+   const data={proposedName:name,proposedCounty:county,proposedTown:town,proposedAddress:address,
+     proposedLat:lat,proposedLng:lng,decision,parcelKey,note:clean(auditContext?.note,500),
+     submittedBy:user.uid,submittedAt:F.serverTimestamp(),status:'pending',reviewedBy:null,reviewedAt:null};
+   await F.setDoc(submissionRef,data);
    result={uid:'',status:'pending'};
   }
   $('cloudNewForm').hidden=true;newPoint=null;
@@ -359,7 +360,7 @@ async function createFarm(event){
   const message=!localAuditOkay?`豬場「${name}」已寫入雲端，但本機地塊查核尚未儲存成功。請先備份本機資料並檢查。`:admin?`已${candidate?'更新':'建立'}正式豬場「${name}」（ID：${targetUid}）。`:`「${name}」已送交管理員審查；未加入正式豬場筆數。`;
   status(message,!localAuditOkay);
   if(localAuditOkay){unifiedFlow=null;$('cloudUnifiedWizard').hidden=true;$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');hook?.notifyApproved?.(message);if(admin)hook?.focusApproved?.(targetUid);}
- }catch(e){status('儲存未完成：'+err(e)+'。表單仍保留，請檢查後重試；不會自行再新增。',true);}
+ }catch(e){const denied=String(e?.code||'').includes('permission-denied');const hint=!admin&&denied?'送審未建立：請確認 Firebase Firestore 規則中的 farmSubmissions/create 已發布，並確認已用 Google 登入。若同一位置已經送審，也可能因禁止覆寫而被拒絕，請先到「待審核定」查看自己的案件。':'儲存未完成：'+err(e);status(hint+'。表單仍保留，請檢查後重試；不會自行再新增。',true);}
  finally{newBusy=false;renderUser();}
 }
 function publicRows(){return [...liveFarms.values()].filter(f=>!deletedFarmIds.has(f.uid));}
