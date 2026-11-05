@@ -4,6 +4,10 @@ service cloud.firestore {
     function signedIn() {
       return request.auth != null && request.auth.token.email_verified == true;
     }
+    // Allow a Google-authenticated submitter even if email_verified claim is unavailable.
+    function googleUser() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
     function admin() {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
@@ -95,7 +99,7 @@ service cloud.firestore {
     match /farmSubmissions/{id} {
       allow get: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
       allow list: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
-      allow create: if signedIn()
+      allow create: if googleUser()
         && request.resource.data.keys().hasAll(['proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','decision','parcelKey','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
         && request.resource.data.keys().hasOnly(['proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','decision','parcelKey','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
         && request.resource.data.proposedName is string && request.resource.data.proposedName.size() > 0 && request.resource.data.proposedName.size() <= 150

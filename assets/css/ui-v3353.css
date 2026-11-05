@@ -36,3 +36,8 @@
 .cloud-approve-btn:hover{background:#135b44}.cloud-approve-btn:disabled{opacity:.5;cursor:not-allowed}
 .cloud-approval-help{font-size:12px;color:#5f6f69;line-height:1.55;margin:5px 0 12px}
 @media(max-width:700px){.cloud-auth-input .cloud-approve-btn{width:100%;min-height:48px}}
+
+/* V3.3.62: 送審結果必須在手機表單內直接可見 */
+.cloud-submit-feedback{margin:12px 0 4px;padding:12px 14px;border-radius:10px;background:#e9f5ef;color:#185443;font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.cloud-submit-feedback[data-error="yes"]{background:#fff0e8;color:#863c1c;border:1px solid #ecb59a}
+.cloud-submit-feedback[hidden]{display:none!important}

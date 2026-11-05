@@ -14,6 +14,7 @@ let sharedAudits=[],syncBusy=false;
 let cloudAuditPageSize=100,cloudFormDirty=false; // cloud copies never replace local data without explicit import
 function status(msg,bad=false){
  for(const id of ['cloudStatus','cloudDialogStatus']){const el=$(id);if(el){el.textContent=msg;el.dataset.error=bad?'yes':'no';}}
+ const inline=$('cloudNewSubmitFeedback');if(inline && !$('cloudNewForm')?.hidden){inline.textContent=msg;inline.dataset.error=bad?'yes':'no';inline.hidden=false;}
  const btn=$('cloudOpen');if(btn)btn.title=msg;
 }
 function setCloudView(view='manage'){
@@ -360,7 +361,21 @@ async function createFarm(event){
   const message=!localAuditOkay?`豬場「${name}」已寫入雲端，但本機地塊查核尚未儲存成功。請先備份本機資料並檢查。`:admin?`已${candidate?'更新':'建立'}正式豬場「${name}」（ID：${targetUid}）。`:`「${name}」已送交管理員審查；未加入正式豬場筆數。`;
   status(message,!localAuditOkay);
   if(localAuditOkay){unifiedFlow=null;$('cloudUnifiedWizard').hidden=true;$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');hook?.notifyApproved?.(message);if(admin)hook?.focusApproved?.(targetUid);}
- }catch(e){const denied=String(e?.code||'').includes('permission-denied');const hint=!admin&&denied?'送審未建立：請確認 Firebase Firestore 規則中的 farmSubmissions/create 已發布，並確認已用 Google 登入。若同一位置已經送審，也可能因禁止覆寫而被拒絕，請先到「待審核定」查看自己的案件。':'儲存未完成：'+err(e);status(hint+'。表單仍保留，請檢查後重試；不會自行再新增。',true);}
+ }catch(e){
+  const code=String(e?.code||'unknown');
+  let detail='';
+  if(!admin&&code.includes('permission-denied')&&user&&db){
+   try{
+    const check=await F.getDocs(F.query(F.collection(db,'farmSubmissions'),F.where('submittedBy','==',user.uid),F.limit(100)));
+    const expectedId=(parcelKey?`parcel-${stableKey(user.uid+':'+parcelKey)}`:`point-${stableKey(user.uid+':'+identifier)}`);
+    const existing=check.docs.find(doc=>doc.id===expectedId);
+    if(existing)detail=`這個位置已經有你的送審案件（狀態：${existing.data().status==='pending'?'待審':existing.data().status==='approved'?'已核准':'已處理'}），系統禁止重複覆寫。請至「待審核定」查詢。`;
+    else detail='沒有查到相同 ID 的本人案件。請核對 Firebase 專案及已發布的 farmSubmissions 建立規則、Google 登入狀態。';
+   }catch(probeError){detail='也無法讀取自己的送審案件（'+String(probeError?.code||'查詢失敗')+'），請確認 Firestore 正式規則與登入權杖。';}
+  }
+  const msg=detail||('儲存未完成：'+err(e));
+  status(`${msg}（錯誤碼：${code}；Firebase 專案：${clean(conf.projectId,100)}）。資料尚未確認寫入，請不要連續送出。`,true);
+ }
  finally{newBusy=false;renderUser();}
 }
 function publicRows(){return [...liveFarms.values()].filter(f=>!deletedFarmIds.has(f.uid));}
