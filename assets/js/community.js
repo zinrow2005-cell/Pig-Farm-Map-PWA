@@ -1,4 +1,4 @@
-/* 豬場查核 V3.3.42｜地塊標記直填、管理員刪除與同步統計。 */
+/* 豬場查核 V3.3.63｜儲存成功後清除表單未儲存警告。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
@@ -355,6 +355,9 @@ async function createFarm(event){
    await F.setDoc(submissionRef,data);
    result={uid:'',status:'pending'};
   }
+  // Server has acknowledged this create/update/submission.  A later close
+  // must not warn that the successfully committed form was unsaved.
+  clearCloudFormDirty();
   $('cloudNewForm').hidden=true;newPoint=null;
   let localAuditOkay=true;
   if(auditContext){const ctx=auditContext;auditContext=null;if(admin&&ctx.onSaved)localAuditOkay=(await ctx.onSaved(result))!==false;}
@@ -389,6 +392,7 @@ async function deleteActiveFarm(uidOverride=null){
  const typed=prompt(`最後確認：請完整輸入「${record.name}」才能刪除。`);if(typed!==record.name){status('名稱不相符，已取消刪除。',true);return false;}
  deleteBusy=true;renderUser();status('正在刪除正式豬場並建立防重建紀錄…');
  try{await F.runTransaction(db,async tx=>{const farmRef=F.doc(db,'farms',uid),delRef=F.doc(db,'deletedFarms',uid);const farm=await tx.get(farmRef),tomb=await tx.get(delRef);if(!farm.exists())throw Error('雲端正式豬場已不存在，未執行刪除');if(tomb.exists())throw Error('此豬場已有刪除紀錄');if(Number(farm.data().version)!==Number(record.version))throw Error('資料已被其他裝置更新，請同步後再刪除');tx.set(delRef,{farmUid:uid,name:clean(farm.data().name,150),deletedBy:user.uid,deletedAt:F.serverTimestamp(),lastVersion:farm.data().version});tx.delete(farmRef);});
+ clearCloudFormDirty();
  deletedFarmIds.add(uid);liveFarms.delete(uid);hook?.removeDeleted?.([uid]);hook?.notifyApproved?.(`已刪除「${record.name}」；地圖、清單與統計已更新。`);activeFarm=null;$('cloudEditForm').hidden=true;$('cloudPanel').hidden=true;$('cloudPanel').classList.remove('cloud-form-active');syncIndicator();return true;
  }catch(e){status('刪除未完成：'+err(e)+'。資料維持原狀。',true);return false;}finally{deleteBusy=false;renderUser();}
 }
@@ -437,6 +441,9 @@ async function submit(event,forceApprove=false){event.preventDefault();if(editBu
    tx.update(ref,changes);
   });
   // Immediately update the existing row (no appended farm record).
+  // Firestore transaction has committed. Reset the local edit warning even
+  // when the separate optional local-audit snapshot subsequently fails.
+  clearCloudFormDirty();
   liveFarms.set(activeFarm,updated);hook?.applyApproved?.(publicRows());renderExistingApprovalStatus();
   const ctx=auditContext;
   let localAuditOk=true;
@@ -448,6 +455,7 @@ async function submit(event,forceApprove=false){event.preventDefault();if(editBu
    hook?.notifyApproved?.((decision?'已核定':'已更新')+'原豬場「'+proposedName+'」；不會新增第二筆。');
    hook?.focusApproved?.(activeFarm);unifiedFlow=null;}
  }else{await F.addDoc(F.collection(db,'suggestions'),payload);
+  clearCloudFormDirty();
   status('豬場資料已提交審查，核准後才更改正式地圖。');
   $('cloudEditForm').hidden=true;auditContext=null;unifiedFlow=null;
  }}
