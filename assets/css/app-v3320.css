@@ -478,3 +478,10 @@
 .cloud-audit-more[hidden]{display:none!important}
 .cloud-workflow-nav button:focus-visible,.cloud-audit-actions button:focus-visible,.cloud-audit-utilities button:focus-visible,.cloud-audit-more:focus-visible{outline:3px solid #eeae49;outline-offset:2px}
 @media(max-width:600px){.cloud-audit-utilities{align-items:flex-start;flex-direction:column}.cloud-audit-utilities button{width:100%}}
+
+/* V3.3.64 pending shortcut, safely wraps on mobile */
+.cloud-status-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#e7f3e9;padding:3px 10px}
+.cloud-status-row .cloud-status{flex:1;min-width:180px;padding:0;background:transparent}
+#cloudPendingShortcut{border:1px solid #bcdbce;border-radius:8px;background:#fff;color:#175740;padding:5px 10px;font:inherit;cursor:pointer;white-space:nowrap}
+#cloudPendingShortcut:hover{background:#eff9f3}
+#cloudPendingShortcut[hidden]{display:none!important}

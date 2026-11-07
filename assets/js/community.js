@@ -1,4 +1,4 @@
-/* 豬場查核 V3.3.63｜儲存成功後清除表單未儲存警告。 */
+/* 豬場查核 V3.3.64｜待審案件與頂端統計統一同步。 */
 (function (root) {'use strict';
 const $=id=>document.getElementById(id);
 const clean=(value,n)=>String(value??'').trim().slice(0,n);
@@ -11,6 +11,63 @@ let farmsFromCache=true,seedBusy=false,newPoint=null,newBusy=false,auditContext=
 let deletedFarmIds=new Set(),unsubDeleted=null,deleteBusy=false,editBusy=false;
 let unifiedFlow=null;
 let sharedAudits=[],syncBusy=false;
+// Independent pending-only listeners: history windows are capped at 50, but counts must not be.
+let pendingNew=[],pendingEdits=[],unsubPendingNew=null,unsubPendingEdits=null;
+let pendingLoad={new:false,edit:false},pendingError={new:'',edit:''};
+function mergeProposalRows(){
+ const rows=new Map();
+ for(const p of newSubmissions)if(!admin||p.status!=='pending'||!pendingLoad.new)rows.set('new:'+p.id,{...p,kind:'new'});
+ for(const p of proposals)if(!admin||p.status!=='pending'||!pendingLoad.edit)rows.set('edit:'+p.id,{...p,kind:'edit'});
+ if(admin){
+  for(const p of pendingNew)rows.set('new:'+p.id,{...p,kind:'new'});
+  for(const p of pendingEdits)rows.set('edit:'+p.id,{...p,kind:'edit'});
+ }
+ return [...rows.values()].sort((a,b)=>{
+  const t=v=>v?.toMillis?.()||v?.toDate?.()?.getTime?.()||0;
+  return t(b.submittedAt)-t(a.submittedAt);
+ });
+}
+function pendingSummary(){
+ if(!user)return {count:0,ready:true,error:false};
+ if(admin){const ready=pendingLoad.new&&pendingLoad.edit;
+  return {count:pendingNew.length+pendingEdits.length,ready,error:!!(pendingError.new||pendingError.edit)};
+ }
+ return {count:mergeProposalRows().filter(p=>p.status==='pending').length,ready:true,error:false};
+}
+function updatePendingUi(){
+ const summary=pendingSummary();
+ const badge=$('cloudPendingShortcut');
+ if(badge){
+  badge.hidden=!user;
+  badge.textContent=summary.error?'待審數量無法確認':!summary.ready?'待審讀取中…':`待審 ${summary.count} 筆`;
+  badge.title=summary.error?'待審資料讀取失敗，請進入共同編輯查看錯誤':!summary.ready?'正在同步新增與修改案件':'點此開啟待審核定';
+ }
+}
+function stopPendingSubscriptions(){
+ if(unsubPendingNew){unsubPendingNew();unsubPendingNew=null;}
+ if(unsubPendingEdits){unsubPendingEdits();unsubPendingEdits=null;}
+ pendingNew=[];pendingEdits=[];
+ pendingLoad={new:false,edit:false};pendingError={new:'',edit:''};
+}
+function subscribePendingCases(){
+ stopPendingSubscriptions();
+ if(!user||!admin||!db){updatePendingUi();return;}
+ for(const config of [{kind:'new',collection:'farmSubmissions'},{kind:'edit',collection:'suggestions'}]){
+  const q=F.query(F.collection(db,config.collection),F.where('status','==','pending'));
+  const sub=F.onSnapshot(q,snap=>{
+   const rows=snap.docs.map(d=>({...d.data(),id:d.id}));
+   if(config.kind==='new')pendingNew=rows;else pendingEdits=rows;
+   pendingLoad[config.kind]=true;pendingError[config.kind]='';
+   renderProposals();updatePendingUi();syncIndicator();
+  },e=>{
+   pendingLoad[config.kind]=false;pendingError[config.kind]=err(e);
+   status(`待審案件同步失敗（${config.collection}）：${err(e)}`,true);
+   renderProposals();updatePendingUi();
+  });
+  if(config.kind==='new')unsubPendingNew=sub;else unsubPendingEdits=sub;
+ }
+ updatePendingUi();
+}
 let cloudAuditPageSize=100,cloudFormDirty=false; // cloud copies never replace local data without explicit import
 function status(msg,bad=false){
  for(const id of ['cloudStatus','cloudDialogStatus']){const el=$(id);if(el){el.textContent=msg;el.dataset.error=bad?'yes':'no';}}
@@ -226,8 +283,9 @@ function renderExistingApprovalStatus(){
 function proposalDate(value){if(value?.toDate)return value.toDate().toLocaleString('zh-TW');return '剛剛';}
 function renderProposals(){const box=$('cloudProposals');if(!box)return;
  if(!user){box.innerHTML='<p class="subtle">登入後可查看自己的申請及審核結果；管理員可查看待審清單。</p>';return;}
- const combined=[...newSubmissions.map(p=>({...p,kind:'new'})),...proposals];
- box.innerHTML=combined.length?combined.map(p=>`<article class="cloud-proposal"><div><strong>${esc(p.proposedName||p.farmUid)}</strong><small> ${esc(p.status==='approved'?'已採納':p.status==='rejected'?'未採納':'待確認')} · ${esc(proposalDate(p.submittedAt))}</small></div><div>${esc(p.proposedCounty)} ${esc(p.proposedTown)} · ${esc(p.proposedAddress)}</div><small>座標：${p.proposedLat===null?'未提供':esc(p.proposedLat)}, ${p.proposedLng===null?'未提供':esc(p.proposedLng)}</small>${p.note?`<small>依據：${esc(p.note)}</small>`:''}${p.kind==='new'?'<small>新增豬場申請</small>':''}${admin&&p.status==='pending'?`<div class="cloud-actions"><button type="button" data-approve="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">${p.kind==='new'?'核准新增':'確認採納'}</button><button type="button" data-reject="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">不採納</button></div>`:''}</article>`).join(''):'<p class="subtle">目前沒有共用編輯紀錄。</p>';
+ const combined=mergeProposalRows();
+ const pendingState=pendingSummary();
+ box.innerHTML=(admin&&!pendingState.ready?'<p class="subtle">正在讀取全部待審案件，清單可能尚未完整。</p>':'')+(admin&&pendingState.error?'<p class="subtle">待審資料讀取失敗，請確認 Firebase 權限。統計暫不顯示 0。</p>':'')+(combined.length?combined.map(p=>`<article class="cloud-proposal"><div><strong>${esc(p.proposedName||p.farmUid)}</strong><small> ${esc(p.status==='approved'?'已採納':p.status==='rejected'?'未採納':'待確認')} · ${esc(proposalDate(p.submittedAt))}</small></div><div>${esc(p.proposedCounty)} ${esc(p.proposedTown)} · ${esc(p.proposedAddress)}</div><small>座標：${p.proposedLat===null?'未提供':esc(p.proposedLat)}, ${p.proposedLng===null?'未提供':esc(p.proposedLng)}</small>${p.note?`<small>依據：${esc(p.note)}</small>`:''}${p.kind==='new'?'<small>新增豬場申請</small>':''}${admin&&p.status==='pending'?`<div class="cloud-actions"><button type="button" data-approve="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">${p.kind==='new'?'核准新增':'確認採納'}</button><button type="button" data-reject="${esc(p.id)}" data-kind="${p.kind==='new'?'new':'edit'}">不採納</button></div>`:''}</article>`).join(''):'<p class="subtle">目前沒有共用編輯紀錄。</p>');
 }
 function edit(uid){open();clearCloudFormDirty();const r=hook?.getRecord(uid);if(!r){status('找不到此豬場紀錄',true);return;}activeFarm=uid;setCloudView('manage');$('cloudPanel').classList.add('cloud-form-active');
  const cloud=liveFarms.get(uid)||{};
@@ -398,7 +456,9 @@ async function deleteActiveFarm(uidOverride=null){
 }
 function syncIndicator(){if(!db)return;const count=liveFarms.size;
  if(!count&&farmsFromCache){status('Firebase 已載入，正在向伺服器確認豬場資料…');return;}
- status(count?`${farmsFromCache?'離線快取／待確認連線':'Firestore 即時同步'} · ${count} 筆正式豬場 · ${proposals.filter(x=>x.status==='pending').length} 筆待審核`: '已連線至 Firebase，但資料庫尚無豬場；請先登入管理員並初始化315筆資料',!count||farmsFromCache);
+ const pending=pendingSummary();updatePendingUi();
+ const waiting=pending.error?'待審讀取失敗':!pending.ready?'待審讀取中':`${pending.count} 筆待審核`;
+ status(count?`${farmsFromCache?'離線快取／待確認連線':'Firestore 即時同步'} · ${count} 筆正式豬場 · ${waiting}`: '已連線至 Firebase，但資料庫尚無豬場；請先登入管理員並初始化315筆資料',!count||farmsFromCache);
 }
 async function submit(event,forceApprove=false){event.preventDefault();if(editBusy)return;if(!user||!db||!adminReady){status('請等待身分確認與 Firebase 連線完成再儲存',true);return;}
  const current=liveFarms.get(activeFarm);if(!current){status('雲端沒有這筆豬場，請管理員先初始化資料',true);return;}
@@ -461,7 +521,7 @@ async function submit(event,forceApprove=false){event.preventDefault();if(editBu
  }}
  catch(e){status('提交失敗：'+err(e)+'；請不要當成已成功同步。',true);}finally{editBusy=false;renderUser();}
 }
-async function review(id,approve,kind='edit'){if(kind==='new')return reviewNew(id,approve);if(!admin||!adminReady||!user||!db)return;const p=proposals.find(x=>x.id===id);if(!p||p.status!=='pending')return;
+async function review(id,approve,kind='edit'){if(kind==='new')return reviewNew(id,approve);if(!admin||!adminReady||!user||!db)return;const p=mergeProposalRows().find(x=>x.id===id&&x.kind==='edit');if(!p||p.status!=='pending')return;
  if(!confirm(`確定${approve?'採納':'退回'}「${p.proposedName}」的修改嗎？`))return;
  status('正在執行雲端交易與版本檢查…');
  try{await F.runTransaction(db,async tx=>{
@@ -480,7 +540,7 @@ async function review(id,approve,kind='edit'){if(kind==='new')return reviewNew(i
 }
 async function reviewNew(id,approve){
  if(!admin||!adminReady||!db||!user)return;
- const p=newSubmissions.find(x=>x.id===id);if(!p||p.status!=='pending')return;
+ const p=mergeProposalRows().find(x=>x.id===id&&x.kind==='new');if(!p||p.status!=='pending')return;
  if(!confirm(`確定${approve?'核准建立':'退回'}「${p.proposedName}」？`))return;
  try{await F.runTransaction(db,async tx=>{
   const ref=F.doc(db,'farmSubmissions',id),farmRef=F.doc(db,'farms','submitted-'+id);
@@ -547,7 +607,7 @@ function beginAudit(lat,lng,decision,linkedUid,note,onSaved,parcelKey=''){
 }
 function subscribeNewSubmissions(){if(unsubNewSubmissions){unsubNewSubmissions();unsubNewSubmissions=null;}newSubmissions=[];renderProposals();sharedAudits=[];renderSharedAudits();if(!user)return;
  const q=admin?F.query(F.collection(db,'farmSubmissions'),F.orderBy('submittedAt','desc'),F.limit(50)):F.query(F.collection(db,'farmSubmissions'),F.where('submittedBy','==',user.uid),F.limit(50));
- unsubNewSubmissions=F.onSnapshot(q,s=>{newSubmissions=s.docs.map(d=>({...d.data(),id:d.id}));renderProposals();updateLinkage();},e=>status('新增豬場審核清單讀取失敗：'+err(e),true));
+ unsubNewSubmissions=F.onSnapshot(q,s=>{newSubmissions=s.docs.map(d=>({...d.data(),id:d.id}));renderProposals();updateLinkage();syncIndicator();},e=>status('新增豬場審核清單讀取失敗：'+err(e),true));
 }
 async function signIn(){if(!auth||!A){status('Firebase 尚未正確設定或套件尚未載入',true);return;}
  const btn=$('cloudSignIn');if(btn)btn.disabled=true;status('正在開啟 Google 登入視窗…');
@@ -573,8 +633,8 @@ function subscribeSuggestions(){if(unsubProposals){unsubProposals();unsubProposa
  const q=admin?F.query(F.collection(db,'suggestions'),F.orderBy('submittedAt','desc'),F.limit(50)):F.query(F.collection(db,'suggestions'),F.where('submittedBy','==',user.uid),F.limit(50));
  unsubProposals=F.onSnapshot(q,snapshot=>{proposals=snapshot.docs.map(d=>({...d.data(),id:d.id}));renderProposals();syncIndicator();},e=>status('修改建議即時監聽失敗：'+err(e),true));
 }
-async function onUserChanged(u){const seq=++loggedInSeq;user=u;admin=false;adminReady=false;renderUser();subscribeSuggestions();subscribeNewSubmissions();if(!u){sharedAudits=[];renderSharedAudits();syncIndicator();return;}
- let value;try{value=await checkAdmin(u);}catch(e){if(seq===loggedInSeq){status('無法確認帳號權限，已暫停新增及送審：'+err(e),true);}return;}if(seq!==loggedInSeq)return;admin=value;adminReady=true;renderUser();syncMessage('身分已確認，正在讀取雲端查核…');subscribeSuggestions();subscribeNewSubmissions();syncIndicator();
+async function onUserChanged(u){const seq=++loggedInSeq;stopPendingSubscriptions();user=u;admin=false;adminReady=false;renderUser();updatePendingUi();subscribeSuggestions();subscribeNewSubmissions();if(!u){sharedAudits=[];renderSharedAudits();syncIndicator();return;}
+ let value;try{value=await checkAdmin(u);}catch(e){if(seq===loggedInSeq){status('無法確認帳號權限，已暫停新增及送審：'+err(e),true);}return;}if(seq!==loggedInSeq)return;admin=value;adminReady=true;renderUser();subscribePendingCases();syncMessage('身分已確認，正在讀取雲端查核…');subscribeSuggestions();subscribeNewSubmissions();syncIndicator();
  maybeShowAdminSetup();readSharedAudits();}
 
 async function refresh(){if(!db){status('Firebase 尚未連線',true);return;}
@@ -600,6 +660,7 @@ async function seed(){if(!admin||!user||!db||seedBusy)return;
  }catch(e){status(`初始化中斷：已完成 ${completed} 筆。${err(e)}。可再次按「補齊」，不會覆寫既有資料。`,true);}finally{seedBusy=false;renderUser();}
 }
 async function start(options){if(started)return;started=true;hook=options;
+ $('cloudPendingShortcut')?.addEventListener('click',()=>{open();setCloudView('review');});
  $('cloudOpen')?.addEventListener('click',open);$('cloudClose')?.addEventListener('click',()=>{if(!canLeaveCloudForm())return;close();});
  bindCloudTabs();
  $('cloudLoginQuick')?.addEventListener('click',()=>{if(user)open();else if(auth)signIn();else open();});
