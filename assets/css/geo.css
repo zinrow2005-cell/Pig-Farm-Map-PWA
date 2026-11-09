@@ -1,0 +1,48 @@
+/* V3.3.33 - Floating geolocation controls for desktop and mobile. */
+.geo-location-controls{position:absolute;z-index:850;right:14px;bottom:68px;display:flex;align-items:center;gap:6px;max-width:calc(100% - 24px);pointer-events:auto}
+.geo-locate-btn,.geo-location-settings>summary{background:#fff;color:#155447;border:1px solid #b3cdbf;box-shadow:0 3px 14px #152e2b33;border-radius:12px;min-height:44px;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.geo-locate-btn{padding:9px 14px}.geo-locate-btn:disabled{opacity:.66;cursor:progress}
+.geo-location-settings{position:relative}.geo-location-settings>summary{list-style:none;cursor:pointer;width:44px;font-size:22px}.geo-location-settings>summary::-webkit-details-marker{display:none}
+.geo-location-panel{position:absolute;right:0;bottom:52px;width:min(310px,calc(100vw - 26px));padding:14px;background:#fff;border:1px solid #b7ccc1;border-radius:13px;box-shadow:0 7px 28px #172a2333;color:#243e34;font-size:13px;line-height:1.6}
+.geo-location-panel label{display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:650}.geo-location-panel input{margin-top:5px;accent-color:#246557;width:16px;height:16px;flex:none}.geo-location-panel small{display:block;margin-top:6px;color:#61776a;font-size:11px}
+.geo-location-controls .geo-locate-btn:focus-visible,.geo-location-settings>summary:focus-visible{outline:3px solid #72baa0;outline-offset:2px}
+@media(max-width:1024px){.geo-location-controls{right:10px;bottom:56px}.geo-locate-btn{min-height:43px;padding:8px 11px}.geo-location-settings>summary{min-height:43px;width:43px}}
+@media(max-width:390px){.geo-locate-btn span{font-size:12px}}
+
+/* Geolocation is visual only: never block farm, F03 parcel, or map clicks. */
+.leaflet-deviceLocationPane,.leaflet-deviceLocationPane canvas,.leaflet-deviceLocationPane svg,.leaflet-deviceLocationPane path{pointer-events:none!important}
+
+/* V3.3.42: location buttons occupy tool bar, never cover map/caption. */
+.geo-location-controls{position:relative;right:auto;bottom:auto;z-index:850;flex:none;margin-left:auto;display:flex;gap:5px}
+.geo-location-panel{bottom:auto;top:52px}
+.geo-locate-btn,.geo-location-settings>summary{min-height:35px;box-shadow:none}
+.geo-location-settings>summary{width:36px;font-size:19px}
+.geo-locate-btn{padding:6px 10px}
+.farm-name-toggle{white-space:nowrap;display:flex;align-items:center;gap:4px}
+.farm-name-tooltip{background:#fffdfa!important;color:#153d2e!important;border:1px solid #9bbfae!important;border-radius:5px!important;box-shadow:0 2px 6px #0003!important;font-size:12px!important;font-weight:650!important;pointer-events:none!important;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.farm-name-tooltip:before{display:none!important}
+.cloud-link-existing{margin:9px 0;padding:10px;background:#f0f8f4;border:1px solid #c5dccc;border-radius:10px}
+.cloud-link-existing label{display:block;font-weight:700;font-size:13px;margin-bottom:4px}
+.cloud-link-existing input{box-sizing:border-box;width:100%;min-height:39px;padding:8px;border-radius:8px;border:1px solid #b0c7bc;background:#fff}
+.cloud-link-existing small{font-size:11px;color:#52685f}
+.cloud-link-results{max-height:190px;overflow:auto;margin-top:7px;display:grid;gap:4px}
+.cloud-link-results button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;background:#fff;border:1px solid #c5d8ce;border-radius:7px;padding:7px 9px;cursor:pointer}
+.cloud-link-results button:hover,.cloud-link-results button:focus-visible{border-color:#178266;background:#e6f5ed}
+@media(max-width:1024px){.geo-location-controls{position:relative;right:auto;bottom:auto}.geo-locate-btn{min-height:35px}.geo-location-settings>summary{min-height:35px;width:36px}.layer-controls{flex-wrap:wrap}.geo-location-controls{margin-left:auto}.farm-name-toggle{font-size:11px}}
+
+/* A separate compact quick-action strip avoids all mobile fixed-height layer-bar conflicts. */
+.map-quick-controls{display:flex;align-items:center;gap:12px;flex:none;min-height:41px;padding:3px 12px;background:#f7faf8;border-bottom:1px solid #dce7df;position:relative;z-index:1000}
+.map-quick-controls .geo-location-controls{margin-left:auto}
+.map-quick-controls .farm-name-toggle{display:flex!important;align-items:center;gap:5px;white-space:nowrap;font-size:12px;color:#255945;font-weight:600}
+.map-quick-controls .farm-name-toggle input{accent-color:#23775b;width:17px;height:17px}
+@media(max-width:1024px){.map-quick-controls{min-height:40px;padding:3px 9px;gap:5px}.map-quick-controls .farm-name-toggle{font-size:11px}}
+
+/* V3.3.57: bounded, noninteractive lightweight labels for small devices. */
+.leaflet-farmNamePane,.leaflet-farmNamePane *{pointer-events:none!important}
+.farm-name-lite-anchor{border:0!important;background:transparent!important}
+.farm-name-lite{position:absolute;left:0;bottom:0;transform:translateX(-50%);display:block;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:3px 6px;border-radius:5px;background:rgba(255,254,247,.94);border:1px solid #a6c5b1;color:#164c34;font-size:11px;line-height:15px;font-weight:700;box-shadow:0 1px 4px #0003;pointer-events:none}
+@media(max-width:1024px){.farm-name-lite{font-size:10px;max-width:112px;padding:2px 4px}}
+
+/* V3.3.58: single Canvas layer instead of repeated DOM label markers. */
+.leaflet-farmNamePane,.leaflet-farmNamePane canvas{pointer-events:none!important;touch-action:none!important}
+.farm-name-canvas{display:block;position:absolute;max-width:none;user-select:none;-webkit-user-select:none}

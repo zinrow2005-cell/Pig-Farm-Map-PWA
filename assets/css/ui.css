@@ -1,0 +1,152 @@
+
+/* V3.3.53: progressive disclosure & status design. Original data flow unchanged. */
+.metric-intro{display:flex;align-items:baseline;gap:10px;padding:7px 15px 0;background:#f8faf8;color:#26523e}
+.metric-intro strong{font-size:13px}.metric-intro span{font-size:11px;color:#708177}
+.metrics-clickable .metric-link{transition:background .15s,border-color .15s}
+.metrics-clickable .metric-link[data-stat-view="missing"]{background:#fff8eb;border-color:#f2d6a8}
+.metrics-clickable .metric-link[data-stat-view="approved"]{background:#eaf5ef;border-color:#bcd9ca}
+.metrics-clickable .metric-link[data-stat-view="audited"]{background:#f2f5fa;border-color:#cfd9e5}
+.metrics-clickable .metric-link[data-stat-view="located"]{background:#f0f8f8;border-color:#c3dddd}
+.audit-decision-hero{background:#edf7f1;border:1px solid #c6e1cf;border-radius:11px;padding:10px;margin:9px 0;color:#245d40}
+.audit-decision-hero strong{font-size:14px}.audit-decision-hero p{font-size:12px!important;margin:4px 0 0!important;color:#536b5c}
+.audit-panel #auditActions:not([hidden]){display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}
+.audit-panel #auditActions button{min-height:45px!important;padding:8px!important;font-size:13px!important;border-radius:10px;font-weight:700}
+.audit-panel #auditActions button[data-audit="pig"]{background:#1d6d4e;color:white}
+.audit-panel #auditActions button[data-audit="maybe"]{background:#fff6de;color:#8d611c;border:1px solid #e5cb87}
+.audit-panel #auditActions button[data-audit="other"]{background:#f0f2f2;color:#3a5860;border:1px solid #ced7d8}
+.audit-decision-help{font-size:11px!important;color:#738176!important;margin-top:2px!important}
+.audit-advanced-toggle{margin-top:7px!important}
+.status-meaning-strip{display:flex;flex-wrap:wrap;gap:6px;padding:5px 0 10px}
+.status-meaning-strip span{font-size:11px;font-weight:650;border-radius:20px;padding:5px 10px;background:#f2f5f3}
+.state-located{color:#176a74!important;background:#e8f5f6!important}.state-unlocated{color:#936014!important;background:#fff2d8!important}.state-pending{color:#8553a0!important;background:#f5edfa!important}.state-approved{color:#256c4a!important;background:#e4f4e9!important}
+.management-route-guide{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:11px 0}
+.management-route-guide>div{display:flex;flex-direction:column;gap:4px;border:1px solid #d5e4d9;background:#f7faf8;border-radius:11px;padding:10px;min-width:0}
+.management-route-guide strong{font-size:12px}.management-route-guide small{font-size:11px;color:#63786d;line-height:1.5}.route-icon{display:inline-flex;align-items:center;justify-content:center;width:27px;height:27px;border-radius:9px;background:#dceee3;color:#1d6b4e;font-weight:bold}
+.form-section-title{display:flex;flex-direction:column;gap:3px;margin:15px 0 6px;padding:9px 11px;border-left:4px solid #4a9b79;background:#f3f8f5;border-radius:0 9px 9px 0}
+.form-section-title b{font-size:13px;color:#1f6045}.form-section-title small{font-size:11px;color:#71857a}
+.record-mode-tag{display:inline-block;font-size:12px;font-weight:700;border-radius:20px;padding:6px 11px;margin:8px 0;background:#e9f5ed;color:#166744}
+.record-mode-tag.edit{background:#eaf1fa;color:#305c8d}
+#cloudNewForm input:focus-visible,#cloudEditForm input:focus-visible{outline:2px solid #4ba57c;outline-offset:1px}
+@media(max-width:700px){.metric-intro{padding:5px 9px 0}.metric-intro span{font-size:10px}.management-route-guide{grid-template-columns:1fr}.management-route-guide>div{display:grid;grid-template-columns:30px 1fr;align-items:center;gap:2px 8px}.management-route-guide small{grid-column:2}.audit-panel #auditActions:not([hidden]){grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* V3.3.56 — 在既有豬場編輯視窗清楚區分儲存與管理員核定。 */
+.cloud-approval-summary{padding:11px 13px;border:1px solid #f0d7a4;border-radius:10px;background:#fff8eb;color:#72511d;font-size:13px;line-height:1.55;margin:10px 0}
+.cloud-approval-summary[data-state="approved"]{background:#e9f7ef;border-color:#a7dac0;color:#17563f}
+.cloud-approve-btn{background:#176b50;color:#fff;border:1px solid #176b50;border-radius:9px;padding:11px 14px;font-weight:700;cursor:pointer;min-height:44px}
+.cloud-approve-btn:hover{background:#135b44}.cloud-approve-btn:disabled{opacity:.5;cursor:not-allowed}
+.cloud-approval-help{font-size:12px;color:#5f6f69;line-height:1.55;margin:5px 0 12px}
+@media(max-width:700px){.cloud-auth-input .cloud-approve-btn{width:100%;min-height:48px}}
+
+/* V3.3.62: 送審結果必須在手機表單內直接可見 */
+.cloud-submit-feedback{margin:12px 0 4px;padding:12px 14px;border-radius:10px;background:#e9f5ef;color:#185443;font-size:14px;line-height:1.55;overflow-wrap:anywhere}
+.cloud-submit-feedback[data-error="yes"]{background:#fff0e8;color:#863c1c;border:1px solid #ecb59a}
+.cloud-submit-feedback[hidden]{display:none!important}
+
+/* V3.3.65: F03 source and load status, compact on mobile */
+.f03-quick-status{font-size:11px;padding:5px 8px;border:1px solid #c6ddd1;background:#eff8f2;color:#215b43;border-radius:8px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}.f03-quick-status.f03-health-warning{background:#fff3e2;color:#915313;border-color:#e9c28a}@media(max-width:700px){.f03-quick-status{font-size:10px;max-width:160px;padding:4px 6px}}
+
+/* V3.3.66: read-only farm health review */
+.health-tabs{display:flex;gap:8px;margin:10px 0}.health-tabs button{flex:1;min-height:38px;border:1px solid #cbded5;border-radius:9px;background:#fff}.health-tabs button.health-active{background:#dff2e9;border-color:#278567;font-weight:700}.health-controls{display:flex;gap:10px;align-items:end;margin:12px 0}.health-controls label{flex:1;font-size:13px}.health-controls select{width:100%;display:block;margin-top:5px;min-height:38px}.health-issue-list{max-height:45vh;overflow:auto;overscroll-behavior:contain}.health-issue{border:1px solid #d5e4db;border-radius:11px;padding:11px;margin:9px 0;background:#fff}.health-issue strong{font-size:14px}.health-issue small{color:#895b16}.health-issue p{font-size:13px;margin:6px 0;overflow-wrap:anywhere}.health-issue button{margin:5px 6px 0 0;min-height:36px}.data-health-panel{max-height:90dvh;overflow:auto}.data-health-panel [hidden]{display:none!important}@media(max-width:600px){.health-controls{flex-wrap:wrap}.health-issue-list{max-height:40vh}}
+
+/* V3.3.67 Cloud write evidence */
+.sync-evidence{margin:10px 14px;padding:12px 14px;border:1px solid #d8e4df;border-radius:12px;background:#f5faf7;color:#285346}
+.sync-evidence-top{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.sync-evidence-top button{border:1px solid #a7cbbb;background:white;color:#205c49;border-radius:8px;padding:8px 10px;cursor:pointer;min-height:38px}
+.sync-evidence p{margin:8px 0;overflow-wrap:anywhere;font-size:13px}
+.sync-evidence [data-state="error"],.sync-evidence [data-state="readError"]{color:#9f3f36;font-weight:600}
+.sync-evidence [data-state="writing"]{color:#815c11}
+.sync-evidence [data-state="verified"]{color:#157246;font-weight:600}
+.sync-evidence details summary{cursor:pointer;font-size:12px;margin:5px 0}
+.sync-evidence-details{white-space:pre-line;line-height:1.7}
+.sync-evidence small{display:block;color:#62766d;line-height:1.5;font-size:11px}
+
+.sync-evidence [data-state="refreshed"]{color:#21638b;font-weight:600}
+
+/* V3.3.88: preliminary duplicate candidate warnings in pending approval list. */
+.cloud-duplicate-preview{margin:.6rem 0;padding:.65rem .8rem;border:1px solid #d4aa58;border-radius:10px;background:#fff8e8;color:#5e431c;display:grid;gap:.35rem;font-size:.9rem}
+.cloud-duplicate-preview.subtle{background:transparent;border-color:#d8d8d8;color:inherit}
+.cloud-duplicate-preview small{display:block;font-size:.8rem;line-height:1.5}
+.cloud-duplicate-links{display:flex;gap:.4rem;flex-wrap:wrap}
+.cloud-duplicate-link{max-width:100%;overflow-wrap:anywhere;border:1px solid #a7772a;background:#fff;color:#59400e;border-radius:7px;padding:.3rem .5rem;cursor:pointer;font-size:.85rem}
+.cloud-duplicate-link:focus-visible{outline:3px solid #206da5;outline-offset:2px}
+.cloud-duplicate-highlight{outline:3px solid #d49b31;outline-offset:3px}
+
+/* V3.3.89: auditable, administrator-only duplicate adjudication */
+.cloud-resolution-actions{display:flex;flex-wrap:wrap;gap:8px;padding:12px;margin:9px 0;border:1px solid #a2c6b2;border-radius:11px;background:#f3faf5}
+.cloud-resolution-actions label{flex:1 1 100%;font-weight:600;font-size:13px}
+.cloud-resolution-actions select{display:block;width:100%;min-height:40px;margin-top:5px;border-radius:8px;border:1px solid #92ab9d;background:white}
+.cloud-resolution-actions button{min-height:40px;border:1px solid #448469;border-radius:8px;background:#fff;color:#225b45;cursor:pointer;padding:7px 12px}
+.cloud-resolution-actions small{flex:1 1 100%;font-size:12px;line-height:1.6}
+.cloud-resolution-note{display:grid;gap:3px;padding:9px;margin:7px 0;background:#eff7f0;border-left:3px solid #338765;border-radius:6px;overflow-wrap:anywhere}
+
+/* V3.3.90: read-only administrator resolution history */
+.cloud-resolution-history-panel{margin:14px 0;border:1px solid #bdd6c8;border-radius:12px;padding:11px;background:#f8fbf9}
+.cloud-resolution-history-panel>summary{cursor:pointer;font-weight:700;padding:7px;list-style-position:inside}
+.cloud-resolution-history-controls{display:flex;align-items:end;flex-wrap:wrap;gap:9px;margin:10px 0}
+.cloud-resolution-history-controls label{flex:1 1 210px;font-size:13px;font-weight:600}
+.cloud-resolution-history-controls input,.cloud-resolution-history-controls select{display:block;width:100%;min-height:40px;margin-top:5px;border:1px solid #aac9b8;border-radius:8px;padding:8px;background:white}
+.cloud-resolution-history-controls button,.cloud-resolution-history-actions button,#cloudResolutionMore{min-height:40px;padding:8px 11px;border:1px solid #77a48b;border-radius:8px;background:#fff;color:#205d43;cursor:pointer}
+.cloud-resolution-history-card{display:grid;gap:6px;padding:12px;margin:10px 0;border:1px solid #cfdfd6;background:#fff;border-radius:10px;overflow-wrap:anywhere}
+.cloud-resolution-history-card small{color:#53685d;font-size:12px}
+.cloud-resolution-history-card p{margin:2px 0;white-space:pre-wrap;font-size:13px}
+.cloud-resolution-history-state{font-size:12px;padding:6px 8px;border-radius:6px;background:#e9f4eb;color:#245c42}
+.cloud-resolution-history-state[data-state="warning"]{background:#ffeded;color:#953e30}
+.cloud-resolution-history-state[data-state="unknown"]{background:#f3f0e7;color:#775e24}
+.cloud-resolution-history-actions{display:flex;gap:7px;flex-wrap:wrap}
+.cloud-resolution-history-panel>small{display:block;margin-top:8px;color:#647368;line-height:1.5}
+@media(max-width:600px){.cloud-resolution-history-controls{display:block}.cloud-resolution-history-controls label,.cloud-resolution-history-controls button{display:block;width:100%;margin:8px 0}}
+
+/* V3.3.94 read-only lineage history */
+#cloudLineageHistory .cloud-resolution-history-state[data-state="pending"]{background:#e7f2ff;color:#245c82}
+#cloudLineageHistory .cloud-resolution-history-state[data-state="unchecked"]{background:#f4f5f7;color:#4f5865}
+
+/* V3.4.00: visible, non-approving local review context while editing */
+.cloud-legacy-edit-context{border:1px solid var(--line, #bcc6d2);border-left:4px solid #b7872a;border-radius:12px;padding:12px;margin:10px 0;background:var(--card-bg,#fff);line-height:1.55}
+.cloud-legacy-edit-context p{margin:6px 0;overflow-wrap:anywhere}
+.cloud-legacy-edit-context[hidden]{display:none!important}
+.cloud-legacy-edit-context small{display:block;margin-top:8px;color:var(--muted,#576372)}
+
+/* V3.4.01: local review evidence; never conflated with approval */
+.cloud-legacy-evidence-form{border-top:1px solid #d9e6dc;padding-top:9px;margin-top:5px}
+.cloud-legacy-evidence-form>summary{cursor:pointer;font-weight:650;color:#205d43;padding:7px 0}
+.cloud-legacy-evidence-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:10px;padding:10px 0}
+.cloud-legacy-evidence-fields label{display:grid;gap:5px;font-size:13px}
+.cloud-legacy-evidence-fields select,.cloud-legacy-evidence-fields textarea{width:100%;min-width:0;border:1px solid #a4b9ae;border-radius:7px;padding:9px;font:inherit;background:#fff;color:#173d29}
+.cloud-legacy-evidence-note,.cloud-legacy-evidence-fields>.cloud-resolution-history-actions{grid-column:1/-1}
+
+/* V3.4.04: archival comparison, scroll without widening the mobile dialog. */
+.cloud-legacy-history-diffs {display:grid;gap:8px;margin-top:8px}
+.cloud-legacy-history-diff {border:1px solid var(--line,#d9e2e0);border-radius:9px;padding:8px}
+.cloud-legacy-history-sides {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.cloud-legacy-history-sides p {margin:4px 0;overflow-wrap:anywhere;white-space:pre-wrap}
+@media(max-width:620px){.cloud-legacy-history-sides{grid-template-columns:1fr}}
+
+/* V3.4.05: cloud-history review warnings within the local worklist */
+.cloud-legacy-priority-alert{border-left:3px solid #c47d27;background:rgba(211,145,44,.11);border-radius:5px;padding:.55rem .7rem;line-height:1.55;}
+
+/* V3.4.07 — single-admin review shortcuts and advanced tools */
+.cloud-single-admin-shortcuts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0;padding:10px;border:1px solid #d9e5dd;border-radius:10px;background:rgba(236,246,239,.7)}
+.cloud-single-admin-shortcuts button{border:1px solid #a7c5b5;border-radius:8px;padding:9px 12px;background:#fff;color:#234c36;cursor:pointer;font:inherit}
+.cloud-single-admin-shortcuts button:hover,.cloud-single-admin-shortcuts button:focus-visible{outline:2px solid #45896a;outline-offset:1px}
+.cloud-single-admin-shortcuts span{color:#52665d;font-size:12px;flex:1 1 210px}
+.cloud-advanced-tools{margin:12px 0;border:1px solid #dce5df;border-radius:12px;padding:10px;max-width:100%;min-width:0}
+.cloud-advanced-tools>summary{font-weight:700;cursor:pointer;padding:8px 6px;list-style-position:inside}
+.cloud-advanced-tools>details{margin:8px 0}
+@media(max-width:620px){.cloud-single-admin-shortcuts button{flex:1 1 100%}}
+
+/* V3.4.09 single-admin pending review improvements. */
+.cloud-proposal-filterbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin:10px 0}
+.cloud-proposal-filterbar label{flex:1 1 180px;min-width:0;display:grid;gap:4px}
+.cloud-proposal-filterbar input,.cloud-proposal-filterbar select{width:100%;min-height:42px;box-sizing:border-box}
+.cloud-proposal .cloud-actions{display:flex;flex-wrap:wrap;gap:8px}
+.cloud-proposal .cloud-actions button{min-height:40px}
+.cloud-map-review-return{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:max(18px,env(safe-area-inset-bottom));z-index:9999;max-width:min(88vw,360px);min-height:48px;padding:10px 16px;border:2px solid #0c695e;border-radius:12px;background:#fff;color:#075649;font-weight:700;box-shadow:0 4px 20px #0004}
+.cloud-map-review-return[hidden]{display:none!important}
+@media(max-width:560px){.cloud-proposal-filterbar{flex-direction:column;align-items:stretch}.cloud-proposal-filterbar label{flex:auto}.cloud-map-review-return{left:12px;right:12px;max-width:none}}
+
+/* V3.4.10: mobile-friendly pre-submit inspection, advisory only. */
+.cloud-new-precheck{padding:12px 14px;margin:10px 0;border:1px solid #b8d3c4;border-radius:12px;background:#f4faf7;display:grid;gap:5px;overflow-wrap:anywhere}
+.cloud-new-precheck[data-risk="high"]{border-color:#d7a55d;background:#fff9eb}
+.cloud-new-precheck[data-risk="check"]{border-color:#b9c8d6;background:#f5f8fc}
+.cloud-new-precheck strong{font-size:15px}.cloud-new-precheck small{font-size:12px;line-height:1.6}.cloud-new-precheck ul{padding-left:1.3em;margin:4px 0}.cloud-new-precheck li{margin:4px 0;line-height:1.5}
+@media(max-width:600px){.cloud-new-precheck{padding:11px;font-size:14px}}

@@ -1,0 +1,45 @@
+/* V3.3.21 — 選擇與詳細資料分離；所有裝置地圖名稱橫排且可點擊。 */
+.farm-selection-card .selected-farm-name{display:block;width:100%;font-size:12px;font-weight:750;line-height:1.35;text-align:left;border:0;background:transparent;padding:3px 2px;color:#153d38;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;writing-mode:horizontal-tb;word-break:keep-all}
+.farm-selection-card .selected-farm-name:hover{text-decoration:underline;background:transparent}
+.farm-selected-tooltip{padding:0!important;max-width:min(320px,calc(100vw - 65px))!important;overflow:visible!important;pointer-events:auto!important;cursor:pointer!important}
+.farm-selected-tooltip .farm-tooltip-info{display:flex;align-items:center;gap:8px;padding:5px 9px;max-width:100%;border:0;border-radius:6px;color:inherit;background:transparent!important;font-weight:750;font-size:inherit;white-space:nowrap;writing-mode:horizontal-tb;cursor:pointer}
+.farm-selected-tooltip .farm-tooltip-info:hover,.farm-selected-tooltip .farm-tooltip-info:focus-visible{background:#27665a!important;outline:2px solid #f6d35a;outline-offset:1px}
+.farm-tooltip-text{min-width:0;max-width:250px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;writing-mode:horizontal-tb;word-break:keep-all}
+.farm-tooltip-symbol{flex:none;color:#f4df9e;font-size:17px}
+/* 在手機雙圖模式，使用下方資訊卡點擊；單圖模式直接點地圖名稱 */
+@media(max-width:600px){.maps.both .farm-selected-tooltip{display:none!important}.farm-selection-card .selected-farm-name{font-size:11px}}
+.farm-info-backdrop{z-index:15000;background:#10282092}
+.farm-info-dialog[hidden],.farm-info-backdrop[hidden]{display:none!important}
+.farm-info-dialog{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:15010;width:min(500px,calc(100vw - 24px));max-height:min(86dvh,740px);overflow:auto;background:#fff;border:1px solid #c8dfd3;border-radius:17px;box-shadow:0 20px 65px #10291b73;color:#213d35;display:flex;flex-direction:column}
+.farm-info-header{display:flex;align-items:start;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid #dce9e2;background:#eef8f2}
+.farm-info-header small{font-size:11px;color:#607e70}
+.farm-info-header h2{font-size:19px;line-height:1.35;margin:5px 0 0;overflow-wrap:anywhere}
+.farm-info-header button{flex:none;font-size:16px;background:white;padding:6px 11px}
+.farm-info-body{overflow-y:auto;flex:1;padding:15px 18px;display:grid;gap:14px;font-size:14px}
+.farm-info-body>div{min-width:0}
+.farm-info-body small{display:block;font-size:11px;color:#6f8277;margin-bottom:5px}
+.farm-info-body p{margin:0;line-height:1.5;overflow-wrap:anywhere;white-space:pre-wrap}
+.farm-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.farm-info-grid>div{background:#f5faf7;padding:10px;border-radius:10px;min-width:0}
+.farm-info-grid strong{overflow-wrap:anywhere;font-size:13px;line-height:1.5}
+.farm-info-caution{border-radius:9px;background:#fff9ed;padding:9px;font-size:11px;line-height:1.5;color:#87653e!important}
+.farm-info-footer{display:flex;gap:9px;justify-content:end;padding:12px 18px;border-top:1px solid #dce9e2;background:#fff;position:sticky;bottom:0}
+.farm-info-footer button{font-size:13px}
+@media(max-width:600px){.farm-info-dialog{top:auto;left:0;bottom:0;transform:none;width:100%;max-height:87dvh;border-radius:18px 18px 0 0}.farm-info-header{padding:13px 15px}.farm-info-body{padding:13px 15px}.farm-info-footer{padding:10px 15px calc(10px + env(safe-area-inset-bottom))}.farm-selection-card .selected-farm-name{min-width:0}}
+
+/* V3.3.40: visible, source-aware delete action in farm details */
+.farm-info-delete{min-height:40px;padding:9px 12px;white-space:nowrap;background:#fff1f0!important;border:1px solid #dca4a0!important;color:#982b25!important;font-weight:700;cursor:pointer}
+.farm-info-delete[hidden]{display:none!important}
+.farm-info-delete:disabled{opacity:.55;cursor:wait}
+@media(max-width:600px){.farm-info-footer{flex-wrap:wrap;justify-content:stretch}.farm-info-footer button{min-height:43px;flex:1 1 auto}.farm-info-footer .farm-info-delete{flex-basis:100%}}
+
+/* V3.3.41: 地圖資訊標題右上角直接顯示刪除入口（不靠清單編輯） */
+.farm-info-header-actions{display:flex;align-items:center;gap:8px;flex:none}
+.farm-info-header-actions .farm-info-delete{min-height:38px;white-space:nowrap;padding:7px 10px;font-size:12px}
+.farm-info-header-actions #farmInfoClose{min-width:38px;min-height:38px}
+@media(max-width:600px){.farm-info-header{gap:6px}.farm-info-header-actions{gap:5px}.farm-info-header-actions .farm-info-delete{font-size:11px;padding:7px 8px}.farm-info-header h2{font-size:17px}}
+
+/* V3.4.08: 地圖資訊快捷操作，手機上避免四個按鈕互相壓縮。 */
+.farm-info-footer{flex-wrap:wrap;justify-content:flex-end}
+.farm-info-footer button{min-height:42px}
+@media(max-width:600px){.farm-info-footer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.farm-info-footer button{width:100%;min-width:0;margin:0;padding:10px 6px;font-size:12px}.farm-info-dialog{max-height:calc(100dvh - env(safe-area-inset-top) - 10px)}}

@@ -8,6 +8,11 @@ service cloud.firestore {
     function googleUser() {
       return request.auth != null && request.auth.token.firebase.sign_in_provider == 'google.com';
     }
+    // Existing verified sign-ins retain their access; Google submissions do not
+    // lose owner-only edit/audit access solely because email_verified is absent.
+    function contributor() {
+      return signedIn() || googleUser();
+    }
     function admin() {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
         && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == 'admin';
@@ -20,9 +25,10 @@ service cloud.firestore {
     }
     function validFarm(data, id) {
       return data.keys().hasAll(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId'])
-        && data.keys().hasOnly(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId','auditDecision','auditParcelKey'])
+        && data.keys().hasOnly(['uid','name','county','town','address','lat','lng','version','updatedAt','approvedSuggestionId','auditDecision','auditParcelKey','approvalLockId'])
         && (!data.keys().hasAny(['auditDecision']) || data.auditDecision in ['pig','maybe'])
         && (!data.keys().hasAny(['auditParcelKey']) || (data.auditParcelKey is string && data.auditParcelKey.size() <= 160))
+        && (!data.keys().hasAny(['approvalLockId']) || (data.approvalLockId is string && data.approvalLockId.size() > 0 && data.approvalLockId.size() <= 100))
         && data.uid == id && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 100
         && data.name is string && data.name.size() > 0 && data.name.size() <= 150
         && data.county is string && data.county.size() > 0 && data.county.size() <= 40
@@ -59,6 +65,13 @@ service cloud.firestore {
       allow create: if admin() && !exists(/databases/$(database)/documents/deletedFarms/$(farmId)) && validFarm(request.resource.data, farmId)
         && request.resource.data.version == 1
         && request.resource.data.approvedSuggestionId == null
+        // Newly approved applications require an immutable same-transaction
+        // lock. Older imported farms retain their legacy create path.
+        && (!farmId.matches('^submitted-.*$') || (
+          request.resource.data.keys().hasAny(['approvalLockId'])
+          && getAfter(/databases/$(database)/documents/farmApprovalLocks/$(request.resource.data.approvalLockId)).data.farmUid == farmId
+          && ('submitted-' + getAfter(/databases/$(database)/documents/farmApprovalLocks/$(request.resource.data.approvalLockId)).data.submissionId) == farmId
+        ))
         ;
       // 採納建議只能用跨文件交易，兩份資料在相同提交內一致更新。
       allow update: if admin() && validFarm(request.resource.data,farmId)
@@ -81,6 +94,61 @@ service cloud.firestore {
         && getAfter(/databases/$(database)/documents/deletedFarms/$(farmId)).data.deletedBy == request.auth.uid
         && getAfter(/databases/$(database)/documents/deletedFarms/$(farmId)).data.lastVersion == resource.data.version;
     }
+    // V3.3.91: immutable approval lock. A transaction must create its farm,
+    // approve its pending application and acquire this lock together.
+    // Lock IDs are deterministic in the app; the rules also bind the lock to
+    // the actual submission and farm. No blanket write access is granted.
+    match /farmApprovalLocks/{lockId} {
+      allow get, list: if admin();
+      allow create: if admin()
+        && !exists(/databases/$(database)/documents/farmApprovalLocks/$(lockId))
+        && request.resource.data.keys().hasAll(['lockKey','farmUid','submissionId','parcelKey','createdBy','createdAt'])
+        && request.resource.data.keys().hasOnly(['lockKey','farmUid','submissionId','parcelKey','createdBy','createdAt'])
+        && request.resource.data.lockKey is string && request.resource.data.lockKey.size() > 0 && request.resource.data.lockKey.size() <= 220
+        && request.resource.data.parcelKey is string && request.resource.data.parcelKey.size() <= 160
+        && request.resource.data.submissionId is string && request.resource.data.submissionId.size() > 0
+        && request.resource.data.farmUid == ('submitted-' + request.resource.data.submissionId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && (!lockId.matches('^reopen-.*$') || (
+          exists(/databases/$(database)/documents/farmReestablishmentReviews/$(request.resource.data.submissionId))
+          && get(/databases/$(database)/documents/farmReestablishmentReviews/$(request.resource.data.submissionId)).data.newLockId == lockId
+          && get(/databases/$(database)/documents/farmReestablishmentReviews/$(request.resource.data.submissionId)).data.submissionId == request.resource.data.submissionId
+          && exists(/databases/$(database)/documents/deletedFarms/$(get(/databases/$(database)/documents/farmReestablishmentReviews/$(request.resource.data.submissionId)).data.priorFarmUid))
+          && get(/databases/$(database)/documents/farmApprovalLocks/$(get(/databases/$(database)/documents/farmReestablishmentReviews/$(request.resource.data.submissionId)).data.priorLockId)).data.farmUid == get(/databases/$(database)/documents/farmReestablishmentReviews/$(request.resource.data.submissionId)).data.priorFarmUid
+        ))
+        && exists(/databases/$(database)/documents/farmSubmissions/$(request.resource.data.submissionId))
+        && get(/databases/$(database)/documents/farmSubmissions/$(request.resource.data.submissionId)).data.status == 'pending'
+        && getAfter(/databases/$(database)/documents/farmSubmissions/$(request.resource.data.submissionId)).data.status == 'approved'
+        && getAfter(/databases/$(database)/documents/farmSubmissions/$(request.resource.data.submissionId)).data.reviewedBy == request.auth.uid
+        && getAfter(/databases/$(database)/documents/farms/$(request.resource.data.farmUid)).data.approvalLockId == lockId
+        && getAfter(/databases/$(database)/documents/farms/$(request.resource.data.farmUid)).data.auditParcelKey == request.resource.data.parcelKey;
+      allow update, delete: if false;
+    }
+    // V3.3.93: immutable, administrator-only lineage review. Historical deletion
+    // and first approval lock must both exist; it cannot resurrect the old ID.
+    match /farmReestablishmentReviews/{submissionId} {
+      allow get, list: if admin();
+      allow create: if admin()
+        && !exists(/databases/$(database)/documents/farmReestablishmentReviews/$(submissionId))
+        && request.resource.data.keys().hasAll(['submissionId','priorFarmUid','priorLockId','newLockId','reason','adminUid','reviewedAt'])
+        && request.resource.data.keys().hasOnly(['submissionId','priorFarmUid','priorLockId','newLockId','reason','adminUid','reviewedAt'])
+        && request.resource.data.submissionId == submissionId
+        && request.resource.data.priorFarmUid is string && request.resource.data.priorFarmUid.size() > 0 && request.resource.data.priorFarmUid.size() <= 100
+        && request.resource.data.priorLockId is string && request.resource.data.priorLockId.size() > 0 && request.resource.data.priorLockId.size() <= 100
+        && request.resource.data.newLockId == ('reopen-' + request.resource.data.priorLockId)
+        && request.resource.data.newLockId.size() <= 100
+        && request.resource.data.reason is string && request.resource.data.reason.size() > 0 && request.resource.data.reason.size() <= 500
+        && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && exists(/databases/$(database)/documents/deletedFarms/$(request.resource.data.priorFarmUid))
+        && exists(/databases/$(database)/documents/farmApprovalLocks/$(request.resource.data.priorLockId))
+        && get(/databases/$(database)/documents/farmApprovalLocks/$(request.resource.data.priorLockId)).data.farmUid == request.resource.data.priorFarmUid
+        && exists(/databases/$(database)/documents/farmSubmissions/$(submissionId))
+        && get(/databases/$(database)/documents/farmSubmissions/$(submissionId)).data.status == 'pending'
+        && get(/databases/$(database)/documents/farmSubmissions/$(submissionId)).data.parcelKey == get(/databases/$(database)/documents/farmApprovalLocks/$(request.resource.data.priorLockId)).data.parcelKey;
+      allow update, delete: if false;
+    }
     match /deletedFarms/{farmId} {
       allow read: if true;
       allow create: if admin()
@@ -97,8 +165,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
     match /farmSubmissions/{id} {
-      allow get: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
-      allow list: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
+      // Keep read access consistent with create: a Google account without an
+      // email_verified claim can still read ONLY its own application.
+      // Ordinary users must query with where('submittedBy','==',auth.uid).
+      allow get: if admin() || (googleUser() && resource.data.submittedBy == request.auth.uid);
+      allow list: if admin() || (googleUser() && resource.data.submittedBy == request.auth.uid);
       allow create: if googleUser()
         && request.resource.data.keys().hasAll(['proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','decision','parcelKey','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
         && request.resource.data.keys().hasOnly(['proposedName','proposedCounty','proposedTown','proposedAddress','proposedLat','proposedLng','decision','parcelKey','note','submittedBy','submittedAt','status','reviewedBy','reviewedAt'])
@@ -118,7 +189,10 @@ service cloud.firestore {
         && request.resource.data.status in ['approved','rejected']
         && request.resource.data.reviewedBy == request.auth.uid && request.resource.data.reviewedAt == request.time
         && (request.resource.data.status == 'rejected' || (
-          getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.name == resource.data.proposedName
+          getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.keys().hasAny(['approvalLockId'])
+          && getAfter(/databases/$(database)/documents/farmApprovalLocks/$(getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.approvalLockId)).data.submissionId == id
+          && getAfter(/databases/$(database)/documents/farmApprovalLocks/$(getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.approvalLockId)).data.farmUid == ('submitted-' + id)
+          && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.name == resource.data.proposedName
           && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.auditDecision == resource.data.decision
           && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.auditParcelKey == resource.data.get('parcelKey','')
           && getAfter(/databases/$(database)/documents/farms/$('submitted-' + id)).data.county == resource.data.proposedCounty
@@ -129,10 +203,86 @@ service cloud.firestore {
         ));
       allow delete: if false;
     }
+    // V3.3.89: Administrator-only, immutable human duplicate adjudication.
+    // A linked-existing decision closes the pending application in the SAME
+    // transaction; a distinct-operator decision retains it for separate approval.
+    match /submissionResolutions/{submissionId} {
+      allow get, list: if admin();
+      allow create: if admin()
+        && !exists(/databases/$(database)/documents/submissionResolutions/$(submissionId))
+        && request.resource.data.keys().hasAll(['submissionId','mode','farmUid','matchedUids','reason','adminUid','reviewedAt'])
+        && request.resource.data.keys().hasOnly(['submissionId','mode','farmUid','matchedUids','reason','adminUid','reviewedAt'])
+        && request.resource.data.submissionId == submissionId
+        && request.resource.data.mode in ['link_existing','distinct']
+        && request.resource.data.farmUid is string
+        && request.resource.data.farmUid.size() > 0
+        && request.resource.data.farmUid.size() <= 100
+        && exists(/databases/$(database)/documents/farms/$(request.resource.data.farmUid))
+        && request.resource.data.matchedUids is list
+        && request.resource.data.matchedUids.size() > 0
+        && request.resource.data.matchedUids.size() <= 20
+        && request.resource.data.farmUid in request.resource.data.matchedUids
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.reason.size() <= 500
+        && request.resource.data.adminUid == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && exists(/databases/$(database)/documents/farmSubmissions/$(submissionId))
+        && get(/databases/$(database)/documents/farmSubmissions/$(submissionId)).data.status == 'pending'
+        && (request.resource.data.mode == 'distinct'
+          || (getAfter(/databases/$(database)/documents/farmSubmissions/$(submissionId)).data.status == 'rejected'
+            && getAfter(/databases/$(database)/documents/farmSubmissions/$(submissionId)).data.reviewedBy == request.auth.uid));
+      allow update, delete: if false;
+    }
+    // V3.3.96: append-only proof of manual historical review.
+    // NOT an approval lock, not a farm mutation, and not evidence of
+    // parcel uniqueness. This preserves existing approval protections.
+    match /legacyLockReviews/{farmId} {
+      allow get, list: if admin();
+      allow create: if admin()
+        && !exists(/databases/$(database)/documents/legacyLockReviews/$(farmId))
+        && exists(/databases/$(database)/documents/farms/$(farmId))
+        && !exists(/databases/$(database)/documents/deletedFarms/$(farmId))
+        && !farmId.matches('^submitted-.*$')
+        && request.resource.data.keys().hasAll(['farmUid','farmName','farmVersion','parcelKey','reason','reviewerUid','reviewedAt','reviewType'])
+        && request.resource.data.keys().hasOnly(['farmUid','farmName','farmVersion','parcelKey','reason','reviewerUid','reviewedAt','reviewType'])
+        && request.resource.data.farmUid == farmId
+        && request.resource.data.farmName == get(/databases/$(database)/documents/farms/$(farmId)).data.name
+        && request.resource.data.farmVersion == get(/databases/$(database)/documents/farms/$(farmId)).data.version
+        && !get(/databases/$(database)/documents/farms/$(farmId)).data.keys().hasAny(['approvalLockId'])
+        && request.resource.data.parcelKey == get(/databases/$(database)/documents/farms/$(farmId)).data.get('auditParcelKey','')
+        && request.resource.data.parcelKey is string && request.resource.data.parcelKey.size() <= 160
+        && request.resource.data.reason is string && request.resource.data.reason.size() >= 10 && request.resource.data.reason.size() <= 500
+        && request.resource.data.reviewerUid == request.auth.uid
+        && request.resource.data.reviewedAt == request.time
+        && request.resource.data.reviewType == 'legacy_history_only';
+      allow update, delete: if false;
+    }
+    // V3.4.02: administrator-only append-only evidence versions.
+    // Not a farm approval, not a parcel lock; never overwrite history.
+    match /legacyEvidenceArchives/{archiveId} {
+      allow get, list: if admin();
+      allow create: if admin()
+        && request.resource.data.keys().hasAll(['farmUid','farmVersion','reviewerUid','signature','source','finding','note','stage','evidenceAt','archivedAt'])
+        && request.resource.data.keys().hasOnly(['farmUid','farmVersion','reviewerUid','signature','source','finding','note','stage','evidenceAt','archivedAt'])
+        && request.resource.data.farmUid is string && request.resource.data.farmUid.size() > 0 && request.resource.data.farmUid.size() <= 100
+        && request.resource.data.farmVersion is int && request.resource.data.farmVersion >= 1
+        && exists(/databases/$(database)/documents/farms/$(request.resource.data.farmUid))
+        && get(/databases/$(database)/documents/farms/$(request.resource.data.farmUid)).data.version == request.resource.data.farmVersion
+        && request.resource.data.reviewerUid == request.auth.uid
+        && request.resource.data.signature is string && request.resource.data.signature.size() > 0 && request.resource.data.signature.size() <= 1600
+        && request.resource.data.source in ['aerial','site','documents','combined']
+        && request.resource.data.finding in ['confirmed','needsEvidence','conflict']
+        && request.resource.data.note is string && request.resource.data.note.size() >= 10 && request.resource.data.note.size() <= 500
+        && request.resource.data.stage in ['todo','checking','evidence','reviewed']
+        && request.resource.data.evidenceAt is string && request.resource.data.evidenceAt.size() <= 50
+        && request.resource.data.archivedAt == request.time;
+      allow update, delete: if false;
+    }
     match /suggestions/{suggestionId} {
-      allow get: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
-      allow list: if admin() || (signedIn() && resource.data.submittedBy == request.auth.uid);
-      allow create: if signedIn() && validSuggestion(request.resource.data)
+      allow get: if admin() || (contributor() && resource.data.submittedBy == request.auth.uid);
+      allow list: if admin() || (contributor() && resource.data.submittedBy == request.auth.uid);
+      allow create: if contributor() && validSuggestion(request.resource.data)
         && request.resource.data.submittedBy == request.auth.uid
         && request.resource.data.submittedAt == request.time
         && request.resource.data.status == 'pending'
@@ -169,15 +319,15 @@ service cloud.firestore {
         && d.lat != null;
     }
     match /sharedAudits/{id} {
-      allow get, list: if admin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
-      allow create: if signedIn() && validSharedAudit(request.resource.data)
+      allow get, list: if admin() || (contributor() && resource.data.ownerUid == request.auth.uid);
+      allow create: if contributor() && validSharedAudit(request.resource.data)
         && id.matches('^audit-' + request.auth.uid + '-[0-9a-z]+$')
         && request.resource.data.ownerUid == request.auth.uid;
-      allow update: if signedIn() && validSharedAudit(request.resource.data)
+      allow update: if contributor() && validSharedAudit(request.resource.data)
         && id.matches('^audit-' + request.auth.uid + '-[0-9a-z]+$')
         && resource.data.ownerUid == request.auth.uid
         && request.resource.data.ownerUid == resource.data.ownerUid;
-      allow delete: if signedIn() && resource.data.ownerUid == request.auth.uid;
+      allow delete: if contributor() && resource.data.ownerUid == request.auth.uid;
     }
     match /{path=**} {
       allow read, write: if false;

@@ -273,7 +273,15 @@
 @keyframes farmFocusPulse{0%{transform:scale(.55);opacity:.9}100%{transform:scale(1.7);opacity:0}}
 @media(prefers-reduced-motion:reduce){.farm-focus-target::before,.farm-focus-target::after{animation:none;opacity:.65}}
 /* V3.3.16: 牧場名稱必須以橫排單行顯示；超出地圖寬度時省略，完整名稱保留於選取資訊卡。 */
-.farm-selected-tooltip{background:#143e36!important;border:2px solid #fff!important;box-shadow:0 3px 14px #142f2980!important;color:#fff!important;font-weight:750!important;font-size:13px!important;width:max-content!important;max-width:min(340px,calc(100% - 16px))!important;min-width:0!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;word-break:keep-all!important;overflow-wrap:normal!important;writing-mode:horizontal-tb!important;text-orientation:mixed!important;text-align:center!important;line-height:1.4!important;padding:5px 10px!important;box-sizing:border-box!important}
+.farm-selected-tooltip{
+ background:#143e36!important;border:2px solid #fff!important;box-shadow:0 3px 14px #142f2980!important;color:#fff!important;
+ font-weight:750!important;font-size:13px!important;
+ /* Parent of Leaflet tooltip can have an indeterminate/zero width; never use max-width:100% here. */
+ width:max-content!important;min-width:0!important;max-width:320px!important;
+ display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+ word-break:keep-all!important;overflow-wrap:normal!important;writing-mode:horizontal-tb!important;text-orientation:mixed!important;
+ text-align:center!important;line-height:1.4!important;padding:5px 10px!important;box-sizing:border-box!important;
+}
 .farm-selected-tooltip::before{border-top-color:#143e36!important}
 .farm-selection-card{position:absolute;bottom:13px;left:10px;right:10px;z-index:720;background:#fffef5f2;border:2px solid #f1a722;border-left:6px solid #e94322;border-radius:11px;box-shadow:0 4px 18px #163f3360;padding:8px 10px;display:flex;align-items:center;gap:7px;max-width:calc(100% - 20px)}
 .farm-selection-card[hidden]{display:none!important}
@@ -281,7 +289,7 @@
 .farm-selection-card strong{display:block;font-size:12px;white-space:normal;overflow-wrap:anywhere;word-break:normal;overflow:visible;text-overflow:clip;line-height:1.35}
 .farm-selection-card small{display:block;font-size:10px;color:#75553d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .farm-selection-card button{font-size:11px;padding:6px 8px;white-space:nowrap;color:white;border-color:#246557;background:#246557}
-@media(max-width:700px){.farm-entry .farm-edit-btn{padding:5px 6px;font-size:10px}.farm-selection-card{left:4px;right:4px;bottom:4px;padding:5px 6px;max-width:calc(100% - 8px);gap:4px;border-width:1px;border-left-width:4px}.farm-selection-card strong{font-size:10px}.farm-selection-card small{font-size:9px}.farm-selection-card button{padding:5px;font-size:10px}.farm-selected-tooltip{font-size:11px!important;max-width:calc(100% - 14px)!important;white-space:nowrap!important}}
+@media(max-width:700px){.farm-entry .farm-edit-btn{padding:5px 6px;font-size:10px}.farm-selection-card{left:4px;right:4px;bottom:4px;padding:5px 6px;max-width:calc(100% - 8px);gap:4px;border-width:1px;border-left-width:4px}.farm-selection-card strong{font-size:10px}.farm-selection-card small{font-size:9px}.farm-selection-card button{padding:5px;font-size:10px}.farm-selected-tooltip{font-size:11px!important;max-width:min(300px,calc(100vw - 60px))!important;min-width:0!important;white-space:nowrap!important}}
 
 
 
@@ -321,3 +329,167 @@
 #cloudSeed{border:1px solid #548c6e;background:#e5f4e9;color:#1a5637;font-weight:700}
 #cloudSeed[hidden]{display:none!important}
 @media(max-width:540px){.cloud-auth-input{flex-direction:column;align-items:stretch}.cloud-auth-input button{width:100%}}
+
+/* V3.3.23: reversible audit marks / responsive marker sizing */
+.audit-remove{color:#ab3333!important;border:1px solid #d9a5a5!important;background:#fff4f4!important}
+.audit-map-pin{box-sizing:border-box;line-height:1;transition:width .12s,height .12s}
+
+/* V3.3.24: keep the remove action visible in the mobile review sheet header */
+.audit-sheet-controls{display:flex;align-items:center;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+#auditRemove:not([hidden]){display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-height:34px;padding:6px 9px;font-size:12px;font-weight:700}
+#auditRemove[hidden]{display:none!important}
+@media(max-width:700px){#auditRemove:not([hidden]){min-height:36px;padding:6px 7px;font-size:12px}.audit-panel .audit-top{align-items:flex-start}.audit-heading{min-width:0}}
+
+/* V3.3.26: accessible statistics drill-down, desktop + mobile. */
+.metrics-clickable .metric-link{display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;background:transparent;border:1px solid transparent;border-radius:9px;padding:5px 9px;color:inherit;font:inherit;cursor:pointer;min-height:39px}
+.metrics-clickable .metric-link:hover,.metrics-clickable .metric-link:focus-visible{background:#e1efe8;border-color:#9ec8b6;outline-offset:2px}
+.metrics-clickable .metric-link b{font-weight:800}.metrics-clickable .metric-link span{text-decoration:underline;text-underline-offset:3px;text-decoration-color:#a6beb2}
+.stat-explorer-scrim{position:fixed;inset:0;z-index:1790;background:#14231b8c}
+.stat-explorer{position:fixed;z-index:1800;top:50%;left:50%;transform:translate(-50%,-50%);width:min(640px,calc(100vw - 24px));height:min(78dvh,760px);background:white;border-radius:16px;box-shadow:0 18px 70px #15271b55;display:flex;flex-direction:column;overflow:hidden}
+.stat-explorer[hidden],.stat-explorer-scrim[hidden]{display:none!important}
+.stat-explorer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:15px 17px;border-bottom:1px solid #e0e9e2}
+.stat-explorer-head h2{margin:0 0 4px;font-size:19px;color:#214736}.stat-explorer-head small{color:#627d6a}.stat-explorer-head button{padding:10px;border:1px solid #d5e2d9;background:#f7faf8;border-radius:9px}
+.stat-explorer-tools{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid #e8eee9}.stat-explorer-tools input{flex:1;min-width:0}.stat-explorer-tools input,.stat-explorer-tools select{padding:10px;border:1px solid #cbdcd2;border-radius:9px;background:white;font-size:14px}
+.stat-explorer-tools select[hidden]{display:none}.stat-explorer-list{overflow-y:auto;flex:1;padding:8px 12px;overscroll-behavior:contain}
+.stat-explorer-item{display:block;text-align:left;width:100%;border:1px solid #e5ede7;border-radius:11px;background:white;padding:12px;margin:6px 0;cursor:pointer;overflow-wrap:anywhere}
+.stat-explorer-item:hover,.stat-explorer-item:focus-visible{background:#eef7f0;border-color:#95c5ad}.stat-explorer-item strong,.stat-explorer-item small,.stat-explorer-item span{display:block;line-height:1.5}.stat-explorer-item strong{font-size:14px;color:#244b39}.stat-explorer-item small{font-size:12px;color:#62776b}.stat-explorer-item span{font-size:12px;color:#287b60;margin-top:5px}
+.stat-explorer-foot{padding:10px 14px;border-top:1px solid #e6eee8;font-size:11px;color:#69796e}
+@media(max-width:700px){.metrics-clickable .metric-link{padding:4px 7px;min-height:35px}.stat-explorer{height:calc(100dvh - 28px);max-height:none;width:calc(100vw - 16px);border-radius:13px}.stat-explorer-head{padding:11px}.stat-explorer-tools{padding:8px}.stat-explorer-tools input,.stat-explorer-tools select{font-size:13px;min-width:0}.stat-explorer-tools select{max-width:39%}}
+
+/* V3.3.27 可觸控統計卡片及強制最上層明細面板 */
+.metrics-clickable .metric-link{touch-action:manipulation;user-select:none;position:relative;pointer-events:auto}
+.stat-explorer-scrim{z-index:30000!important}
+.stat-explorer{z-index:30001!important;overscroll-behavior:contain}
+.stat-explorer[hidden],.stat-explorer-scrim[hidden]{display:none!important}
+
+/* V3.3.28 管理者新增豬場 */
+.cloud-create-entry{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0;padding:12px;background:#eaf6ee;border:1px solid #b7d6c1;border-radius:12px}.cloud-create-entry button{font-weight:700}.cloud-dialog #cloudNewForm{padding:12px;margin:10px 0;border:1px solid #a4c4ad;border-radius:12px;background:#fafefa}.cloud-dialog #cloudNewForm[hidden]{display:none}
+
+/* V3.3.37: show data-entry immediately instead of burying it below login/setup panels. */
+.cloud-cover.cloud-form-active .cloud-dialog > p.subtle,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-first-run,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-auth,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-create-entry,
+.cloud-cover.cloud-form-active .cloud-dialog > h3,
+.cloud-cover.cloud-form-active .cloud-dialog > #cloudProposals {display:none!important}
+.cloud-cover.cloud-form-active .cloud-dialog > form:not([hidden]) {margin-top:12px}
+.cloud-cover.cloud-form-active .cloud-head small {display:none}
+
+/* V3.3.38 */
+.cloud-danger{background:#fff4f3!important;color:#a82828!important;border:1px solid #d78a86!important;font-weight:700}.cloud-danger:hover{background:#ffe5e2!important}
+#cloudNewParcel{padding:8px 10px;border-radius:8px;background:#edf5ef;color:#27634e}
+#cloudNewDecision{width:100%;padding:10px;border:1px solid #c9dbd0;border-radius:8px;background:white}
+
+/* V3.3.39: local-only audit deletion, always accessible on phone and desktop */
+.audit-history-entry{display:flex;align-items:stretch;gap:6px;margin:5px 0;border:1px solid #dce9e1;border-radius:10px;background:#f7faf8;padding:4px}
+.audit-history-list .audit-history-entry .audit-history-open{flex:1;min-width:0;margin:0;background:transparent}
+.audit-history-list .audit-history-entry .audit-history-delete{width:auto;min-width:96px;flex:none;margin:0;padding:8px 10px;align-self:center;background:#fff4f4;color:#a52a2a;border:1px solid #ddbbbb;text-align:center;font-weight:600}
+.audit-history-delete:focus-visible,.audit-remove:focus-visible{outline:3px solid #f0a4a4;outline-offset:2px}
+@media(max-width:700px){.audit-history-entry{gap:4px}.audit-history-list .audit-history-entry .audit-history-delete{min-height:44px;min-width:86px;padding:5px;font-size:12px}#auditRemove:not([hidden]){min-height:42px}}
+
+/* V3.3.46: compact unified cloud operations, mobile-friendly wrapping */
+.cloud-unified-tools,.cloud-sync-section{margin:10px 0;padding:12px;border:1px solid #d8e8df;border-radius:12px;background:#f7faf8}
+.cloud-unified-tools .cloud-auth-input,.cloud-sync-section .cloud-auth-input{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+.cloud-unified-tools button,.cloud-sync-section button{min-height:38px;white-space:normal}
+.cloud-sync-section .cloud-proposal-list{max-height:250px;overflow:auto}
+.cloud-sync-entry{padding:7px 9px;border-bottom:1px solid #dae8dd;font-size:13px}
+.cloud-sync-entry small{display:block;color:#63786f}
+@media(max-width:700px){.cloud-unified-tools,.cloud-sync-section{padding:9px}.cloud-unified-tools button,.cloud-sync-section button{flex:1 1 140px}}
+/* The management dashboard must not push the actual editor below the fold on phones. */
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-unified-tools,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-sync-section {display:none!important}
+
+/* V3.3.47: clear workflow steps for common editing */
+.cloud-dialog-status{margin:10px 0;padding:11px 13px;background:#e9f5ed;border:1px solid #b8ddc8;border-radius:10px;color:#245b3f;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.cloud-dialog-status[data-error="yes"]{background:#fff4e5;color:#975018;border-color:#eccb9b}
+.cloud-workflow-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0}
+.cloud-workflow-nav button{min-height:48px;padding:8px 6px;border-radius:9px;border:1px solid #d1dfd7;background:#f6f9f7;color:#325b45;font-weight:600;white-space:normal}
+.cloud-workflow-nav button[aria-selected="true"]{background:#17684e;color:#fff;border-color:#17684e}
+.cloud-workflow-hint{font-size:12px;color:#60766a;margin:6px 0 10px}
+.cloud-review-section{padding:10px 12px;margin:12px 0;background:#f7faf8;border:1px solid #d8e8df;border-radius:12px}
+.cloud-cover:not(.cloud-form-active)[data-view="manage"] #cloudSyncSection,
+.cloud-cover:not(.cloud-form-active)[data-view="manage"] #cloudReviewSection,
+.cloud-cover:not(.cloud-form-active)[data-view="review"] #cloudManageSection,
+.cloud-cover:not(.cloud-form-active)[data-view="review"] #cloudSyncSection,
+.cloud-cover:not(.cloud-form-active)[data-view="sync"] #cloudManageSection,
+.cloud-cover:not(.cloud-form-active)[data-view="sync"] #cloudReviewSection{display:none!important}
+.cloud-cover.cloud-form-active #cloudWorkflowNav,.cloud-cover.cloud-form-active .cloud-workflow-hint,
+.cloud-cover.cloud-form-active .cloud-dialog > .cloud-review-section{display:none!important}
+.cloud-cover .cloud-create-entry{display:none!important}
+.cloud-advanced{margin-top:8px;padding:6px 10px;border:1px dashed #bdd2c4;border-radius:8px}
+.cloud-advanced summary{cursor:pointer;font-size:12px}
+.cloud-cover:not(.cloud-form-active) .cloud-dialog{scroll-behavior:smooth}
+@media(max-width:540px){.cloud-workflow-nav{gap:4px}.cloud-workflow-nav button{font-size:12px;padding:8px 3px}.cloud-dialog-status{font-size:12px}}
+/* Ensure native hidden works even when component display rules are present. */
+#cloudPanel [hidden]{display:none!important}
+@media(max-width:540px){
+ #cloudManageSection .cloud-auth-input{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+ #cloudManageSection .cloud-auth-input button{min-height:44px;width:auto;min-width:0;flex:none!important}
+ #cloudSyncSection .cloud-auth-input{display:grid;grid-template-columns:1fr;gap:7px}
+ #cloudSyncSection .cloud-auth-input button{min-height:44px;width:100%;flex:none!important}
+}
+
+/* V3.3.49: simplified land review and clear edit navigation */
+.cloud-form-navigation{margin:10px 0;padding:9px 11px;border-radius:10px;background:#eef6f1;border:1px solid #c9dfd0;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.cloud-form-navigation[hidden],#auditAdvancedBody[hidden]{display:none!important}
+.cloud-form-navigation button{background:#fff;border:1px solid #91baa5;border-radius:8px;color:#145e47;padding:9px 12px;font-weight:650;min-height:40px}
+.cloud-form-navigation span{font-size:12px;color:#60786b;flex:1;min-width:190px}
+.audit-quick-hint{padding:9px 10px!important;border-radius:8px;background:#ecf6ef;color:#235d45;font-size:12px;margin:10px 0!important}
+.audit-advanced-toggle{display:block;width:100%;margin:10px 0;padding:11px!important;border:1px solid #bfd7c9;background:#f3f9f5;color:#225841;border-radius:9px;font-weight:650;text-align:left;min-height:42px}
+#auditAdvancedBody{border:1px solid #e0eae3;border-radius:10px;padding:10px;margin:8px 0;background:#fbfdfb}
+.audit-panel #auditActions button[data-audit]{font-weight:650;min-height:42px}
+@media(max-width:700px){.cloud-form-navigation{align-items:stretch}.cloud-form-navigation button{width:100%}.audit-advanced-toggle{min-height:44px}}
+
+/* V3.3.50: single-dialog parcel-to-approval wizard */
+#cloudPanel .cloud-unified-wizard[hidden]{display:none!important}
+.cloud-unified-wizard{padding:16px;background:#f5faf7;border:1px solid #b6d7c4;border-radius:14px;margin:14px 0}
+.wizard-progress,.wizard-form-progress{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;color:#50685b;font-size:12px}
+.wizard-progress span{padding:6px 8px;border-radius:6px;background:#e4ece7}.wizard-progress .active{background:#c9e8d6;color:#115637;font-weight:700}
+.wizard-decisions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 16px}.wizard-decisions button{min-height:48px;white-space:normal}
+.cloud-unified-wizard textarea{display:block;box-sizing:border-box;width:100%;margin:8px 0;border:1px solid #b9cec1;border-radius:8px;padding:9px}
+.wizard-footer{display:flex;justify-content:flex-end;margin-top:12px}
+.cloud-cover.cloud-form-active .cloud-dialog > #cloudUnifiedWizard:not([hidden]){display:block!important}
+.cloud-cover.cloud-form-active .cloud-dialog > form[hidden]{display:none!important}
+@media(max-width:520px){.wizard-progress{gap:3px}.wizard-progress span{font-size:11px;padding:5px}.wizard-decisions{grid-template-columns:1fr 1fr}}
+
+/* V3.3.51 - cloud audit records: human-readable list */
+.cloud-audit-controls{display:grid;grid-template-columns: minmax(0,2fr) minmax(135px,1fr);gap:6px 10px;margin:14px 0 8px}
+.cloud-audit-controls label{font-size:12px;font-weight:650;color:#425e51}
+.cloud-audit-controls input,.cloud-audit-controls select{box-sizing:border-box;min-width:0;width:100%;min-height:42px;border:1px solid #c9dbd1;border-radius:9px;padding:8px 10px;background:#fff;color:#1c3429}
+.cloud-audit-controls label:first-child{grid-column:1;grid-row:1}.cloud-audit-controls label:nth-of-type(2){grid-column:2;grid-row:1}
+.cloud-audit-controls input{grid-column:1;grid-row:2}.cloud-audit-controls select{grid-column:2;grid-row:2}
+.cloud-sync-section .cloud-proposal-list.cloud-audit-list{max-height:360px;overflow:auto}
+.cloud-audit-card{padding:12px!important;margin:8px 0;border:1px solid #d8e7dd!important;border-radius:12px;background:white;font-size:14px}
+.cloud-audit-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.cloud-audit-top strong{font-size:15px;overflow-wrap:anywhere}
+.cloud-audit-badge{font-size:12px;background:#e4f3e9;color:#205943;border-radius:16px;padding:3px 9px}
+.cloud-audit-place{font-size:13px;color:#50675b;margin:7px 0;overflow-wrap:anywhere}
+.cloud-audit-actions{display:flex;flex-wrap:wrap;gap:7px}
+.cloud-audit-actions button{min-height:36px;white-space:normal;font-size:13px}
+.cloud-audit-actions button.cloud-audit-delete{color:#a64036;background:#fff9f8;border-color:#efc4bf}
+.cloud-audit-details{margin-top:10px;padding:10px;background:#f4f8f5;border-radius:8px;line-height:1.8;font-size:12px;overflow-wrap:anywhere}
+.cloud-audit-details code{white-space:normal;overflow-wrap:anywhere}
+@media(max-width:600px){.cloud-audit-controls{grid-template-columns:1fr}.cloud-audit-controls label:first-child,.cloud-audit-controls label:nth-of-type(2),.cloud-audit-controls input,.cloud-audit-controls select{grid-column:1;grid-row:auto}.cloud-audit-controls label:nth-of-type(2){grid-row:3}.cloud-audit-controls select{grid-row:4}.cloud-audit-actions button{flex:1 1 auto}}
+
+/* V3.3.52 – clearer cloud audit interactions */
+.cloud-audit-utilities{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;color:#5b7165;font-size:12px}
+.cloud-audit-utilities button{min-height:38px;padding:7px 12px;border:1px solid #bed6c7;border-radius:9px;background:#f5faf7;color:#245844;cursor:pointer}
+.cloud-audit-more{width:100%;min-height:44px;margin:10px 0;border:1px solid #abcdbb;background:#e8f5ee;border-radius:10px;color:#14593e;font-weight:700;cursor:pointer}
+.cloud-audit-more[hidden]{display:none!important}
+.cloud-workflow-nav button:focus-visible,.cloud-audit-actions button:focus-visible,.cloud-audit-utilities button:focus-visible,.cloud-audit-more:focus-visible{outline:3px solid #eeae49;outline-offset:2px}
+@media(max-width:600px){.cloud-audit-utilities{align-items:flex-start;flex-direction:column}.cloud-audit-utilities button{width:100%}}
+
+/* V3.3.64 pending shortcut, safely wraps on mobile */
+.cloud-status-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#e7f3e9;padding:3px 10px}
+.cloud-status-row .cloud-status{flex:1;min-width:180px;padding:0;background:transparent}
+#cloudPendingShortcut{border:1px solid #bcdbce;border-radius:8px;background:#fff;color:#175740;padding:5px 10px;font:inherit;cursor:pointer;white-space:nowrap}
+#cloudPendingShortcut:hover{background:#eff9f3}
+#cloudPendingShortcut[hidden]{display:none!important}
+
+/* V3.4.12: one-admin review post-commit synchronization */
+.cloud-review-sync{margin:.7rem 0;padding:.75rem;border:1px solid var(--line,#cbd5e1);border-radius:.7rem;background:var(--card,#fff)}
+.cloud-review-sync p{margin:0 0 .5rem;line-height:1.55;overflow-wrap:anywhere}
+.cloud-review-sync [data-state="ok"]{color:#126b43}
+.cloud-review-sync [data-state="partial"],.cloud-review-sync [data-state="error"]{color:#a43428}
+.cloud-review-sync button{min-height:42px;max-width:100%;white-space:normal}
+@media(max-width:600px){.cloud-review-sync button{width:100%;min-height:46px}}
