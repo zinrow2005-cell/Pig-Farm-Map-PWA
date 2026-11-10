@@ -1,7 +1,7 @@
 /* GitHub Pages PWA installation + visible version-update notice.
    Does not clear localStorage/IndexedDB and does not reload unfinished edits automatically. */
 (()=>{
- const VERSION='V3.4.23';
+ const VERSION='V3.4.24';
  window.PIG_FARM_APP_VERSION=VERSION;
  let installPrompt=null;
  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;});
