@@ -1,0 +1,8 @@
+豬場查詢系統 V3.4.14 程式清理版
+測試日期：2026-11-09
+基底版本：V3.4.13 GitHub 完整部署版
+網站與離線瀏覽器檢查：89 PASS / 0 FAIL / 0 SKIP
+JavaScript 獨立回歸測試：37 PASS / 0 FAIL （由專案根目錄逐一執行 tests/test-*.cjs）
+未執行：正式 Firebase 遠端雙帳號流程；Firestore Emulator 規則測試（依賴額外工具）
+檔案整理：13 項帶歷史版本尾碼 CSS/JS 改名；index.html / sw.js / 測試引用同步更新；移除舊文字報告與過期規則提示。
+注意：升級時需清除 GitHub repo 中未被 ZIP 覆蓋的舊命名 CSS/JS，避免殘留無用途的舊檔。

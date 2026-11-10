@@ -689,7 +689,7 @@ function lookupLocalAddress(){
    el.value=value;n++;el.dispatchEvent(new Event('input',{bubbles:true}));
   }
   info.textContent=[result.county,result.town].filter(Boolean).join('')+(n?'；已填入空白欄位，請確認':'；原有內容未覆蓋')+'。© OpenStreetMap contributors';
- }).catch(()=>{if(token===localAddressToken)info.textContent='地址服務暫時無法使用，請自行填寫。';});
+ }).catch(e=>{if(token===localAddressToken)info.textContent='地址查詢失敗：'+(e?.name==='AbortError'?'服務逾時':(/Failed to fetch|NetworkError|Load failed/i.test(e?.message||'')?'連線或外部服務受到阻擋':String(e?.message||'服務不可用')))+'。原地址未更動，請手動填寫。';});
 }
 function closeEditor(){$('editor').hidden=true;$('editorBackdrop').hidden=true;}
 function createPointAt(lat,lng,editExisting=null){if(window.PigCommunity?.enabled){if(editExisting){window.PigCommunity.edit(editExisting);return notice('請在共用編輯視窗中更新原豬場的經緯度。');}window.PigCommunity.beginNew(lat,lng);return;}if(editExisting){const r=STATE.records.find(x=>x.uid===editExisting);if(!r)return;r.geometry={type:'Point',coordinates:[lng,lat]};r.updatedAt=new Date().toISOString();r.review='pending';notice('已重新定位，請再次核對及儲存。');persist();renderList();openRecord(r.uid,false);return;}

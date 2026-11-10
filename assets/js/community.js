@@ -1325,6 +1325,14 @@ function linkExistingFromPoint(uid){
 }
 // Suggested addresses are never saved without the form's normal confirmation.
 // Lookup tokens prevent an older map selection from overwriting a newer point.
+// Bind address buttons independently of Firebase initialization, sign-in and network status.
+// Delegated event also works if the form is re-rendered.
+document.addEventListener('click', event=>{
+ const button=event.target.closest?.('#cloudNewAddressLookup, #cloudAddressLookup');
+ if(!button)return;
+ event.preventDefault();
+ lookupAddress(button.id==='cloudNewAddressLookup'?'new':'edit',true);
+});
 const addressLookupTokens={new:0,edit:0};
 function lookupAddress(kind,force=false){
  const isNew=kind==='new', prefix=isNew?'cloudNew':'cloud';
@@ -1341,14 +1349,14 @@ function lookupAddress(kind,force=false){
  root.PigAddressLookup.lookup(lat,lng).then(result=>{
   if(serial!==addressLookupTokens[kind]||Number(latEl.value)!==lat||Number(lngEl.value)!==lng)return;
   if((!isNew&&$('cloudEditForm').hidden)||(isNew&&$('cloudNewForm').hidden))return;
-  const apply=(field,value,initial,placeholder=false)=>{if(!value||field.value!==initial)return false;if(!force&&initial&&!placeholder)return false;field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));return true;};
+  const apply=(field,value,initial,placeholder=false)=>{if(!value||field.value!==initial)return false;if(initial&&!placeholder)return false;field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));return true;};
   let updated=0;
   if(apply(countyEl,result.county,original.county,isNew&&original.county==='雲林縣'))updated++;
   if(apply(townEl,result.town,original.town))updated++;
   if(apply(addressEl,result.address,original.address))updated++;
   const location=[result.county,result.town].filter(Boolean).join('');
-  record(location?`查到：${location}${result.address?'；'+(result.precision==='門牌'?'含道路門牌':'含道路名稱'):'；沒有可靠道路門牌'}。${updated?'已填入 '+updated+' 欄，請核對後送出。':'現有欄位未被覆蓋，必要時可清空再查詢。'} 資料：© OpenStreetMap contributors`:'未取得可靠縣市鄉鎮，請手動輸入；原有內容保持不變。');
- }).catch(e=>{if(serial===addressLookupTokens[kind])record('查詢失敗或離線，原有資料保留。請手動填寫縣市鄉鎮。'+(e?.name==='AbortError'?'（連線逾時）':''));});
+  record(location?`查到：${location}${result.address?'；'+(result.precision==='門牌'?'含道路門牌':'含道路名稱'):'；沒有可靠道路門牌'}。${updated?'已填入 '+updated+' 欄，請核對後送出。':'原有資料受到保護；如要改用查詢結果，請先清空對應欄位再按一次。'} 資料：© OpenStreetMap contributors`:'未取得可靠縣市鄉鎮，請手動輸入；原有內容保持不變。');
+ }).catch(e=>{if(serial===addressLookupTokens[kind])record('地址查詢未完成：'+(e?.name==='AbortError'?'服務逾時':(/Failed to fetch|NetworkError|Load failed/i.test(e?.message||'')?'連線或外部服務受到阻擋':String(e?.message||'服務不可用')))+'。請手動輸入縣市鄉鎮，原資料未更動。');});
 }
 function beginNew(lat=null,lng=null){clearCloudFormDirty();
  open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
@@ -1995,8 +2003,6 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudApproveExisting')?.addEventListener('click',event=>submit(event,true));
  $('cloudUnifiedWizard')?.addEventListener('click',e=>{const button=e.target.closest('[data-wizard-decision]');if(button)unifiedDecision(button.dataset.wizardDecision);});
  $('cloudWizardCancel')?.addEventListener('click',close);$('cloudWizardBack')?.addEventListener('click',unifiedBack);$('cloudEditWizardBack')?.addEventListener('click',unifiedBack);
- $('cloudNewAddressLookup')?.addEventListener('click',()=>lookupAddress('new',true));
- $('cloudAddressLookup')?.addEventListener('click',()=>lookupAddress('edit',true));
  $('cloudNewLat')?.addEventListener('change',()=>lookupAddress('new'));
  $('cloudNewLng')?.addEventListener('change',()=>lookupAddress('new'));
  $('cloudLat')?.addEventListener('change',()=>lookupAddress('edit'));

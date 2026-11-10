@@ -1,4 +1,4 @@
-/* V3.4.15 — optional, user-initiated/map-point reverse geocoding.
+/* V3.4.16 — optional, user-initiated/map-point reverse geocoding.
    OpenStreetMap Nominatim public service: maximum one request per second,
    no bulk use, no persistent bulk cache. Retrieved addresses are suggestions.
    © OpenStreetMap contributors: https://www.openstreetmap.org/copyright */
@@ -23,18 +23,35 @@
   return {county,town,address,precision:road?(number?'門牌':'道路'):(town?'行政區':'未定位'),provider:'OpenStreetMap / Nominatim'};
  }
  function valid(lat,lng){return Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=21&&lat<=27&&lng>=118&&lng<=123;}
+ async function request(lat,lng,zoom){
+   const delay=Math.max(0,1100-(Date.now()-lastStart));if(delay)await new Promise(r=>setTimeout(r,delay));
+   lastStart=Date.now();const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);
+   try{
+    const q=new URLSearchParams({format:'jsonv2',lat:String(lat),lon:String(lng),addressdetails:'1',zoom:String(zoom),'accept-language':'zh-TW,zh-Hant,zh'});
+    const response=await fetch('https://nominatim.openstreetmap.org/reverse?'+q.toString(),{headers:{Accept:'application/json'},signal:controller.signal,referrerPolicy:'strict-origin-when-cross-origin'});
+    if(!response.ok)throw Error('地址服務回應 '+response.status);
+    return parse(await response.json());
+   }finally{clearTimeout(timeout);}
+ }
  function lookup(lat,lng){lat=Number(lat);lng=Number(lng);if(!valid(lat,lng))return Promise.reject(Error('請先選擇有效的臺灣地圖座標'));
   const key=lat.toFixed(5)+','+lng.toFixed(5);
   if(cached.has(key))return Promise.resolve(cached.get(key));
   const task=chain.catch(()=>{}).then(async()=>{
-   const delay=Math.max(0,1100-(Date.now()-lastStart));if(delay)await new Promise(r=>setTimeout(r,delay));
-   lastStart=Date.now();const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);
+   const precise=await request(lat,lng,18);
+   // Some rural OSM address records contain a road but no administrative fields.
+   // Retry once at administrative zoom rather than guessing a town from a POI.
+   if(precise.county&&precise.town)return precise;
    try{
-    const q=new URLSearchParams({format:'jsonv2',lat:String(lat),lon:String(lng),addressdetails:'1',zoom:'18','accept-language':'zh-TW,zh-Hant,zh'});
-    const response=await fetch('https://nominatim.openstreetmap.org/reverse?'+q.toString(),{headers:{Accept:'application/json'},signal:controller.signal,referrerPolicy:'strict-origin-when-cross-origin'});
-    if(!response.ok)throw Error('地址服務暫時不可用（'+response.status+'）');
-    const parsed=parse(await response.json());cached.set(key,parsed);if(cached.size>60)cached.delete(cached.keys().next().value);return parsed;
-   }finally{clearTimeout(timeout);}
+    const broad=await request(lat,lng,10);
+    const county=precise.county||broad.county,town=precise.town||broad.town;
+    const merged={...precise,county,town};
+    if(precise.address&&(!precise.county||!precise.town)){
+     const roadPart=precise.address.slice((precise.county+precise.town).length);
+     merged.address=(county+town+roadPart).slice(0,220);
+    }
+    if(!merged.address&&town)merged.precision='行政區';
+    cached.set(key,merged);if(cached.size>60)cached.delete(cached.keys().next().value);return merged;
+   }catch(e){cached.set(key,precise);return precise;}
   });chain=task.catch(()=>{});return task;
  }
  root.PigAddressLookup={lookup,parse,valid};

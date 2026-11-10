@@ -1,0 +1,90 @@
+PASS HTML IDs unique 445 IDs
+PASS Local linked assets present []
+PASS JavaScript syntax 16 files []
+PASS Legacy approval lock audit controls exist 
+PASS Legacy audit is all-server read and read-only 
+PASS Lineage history UI controls exist 
+PASS Core UI controls exist 
+PASS Single-admin advanced tools and shortcuts exist 
+PASS Lineage verification is server-only and read-only 
+PASS Submit and approval handlers 
+PASS OnSnapshot listeners present 
+PASS Account-scoped listener generations 
+PASS Pending listener includes metadata-only updates 
+PASS Formal farm listener includes metadata-only updates 
+PASS Pending count requires both server-confirmed snapshots 
+PASS Pending cache runtime test packaged 
+PASS Administrator role is verified against server, not local cache 
+PASS Immutable tombstone cache regression packaged 
+PASS Submission subscription preserves independent cloud audits 
+PASS Stale refresh and audit reads blocked 
+PASS Explicit Firebase server readback 
+PASS Role and pending status validation 
+PASS Atomic new-farm approval lock rule exists 
+PASS Approval race runtime test packaged 
+PASS Legacy lock and distinct decision regression packaged 
+PASS Approval lock transaction and readback present 
+PASS Firestore roles and collections 
+PASS Firestore does not grant blanket access 
+PASS Approval lock emulator regression scenarios packaged 
+PASS Emulator suite covers atomic approval and delete 
+PASS Emulator suite targets only local demo project 
+PASS Legacy worklist UI and export controls 
+PASS Legacy worklist local-only progress and downloadable CSV 
+PASS V3.4.12 local evidence form and stage guard 
+PASS V3.4.12 cloud evidence history UI 
+PASS V3.4.12 immutable evidence archive contract 
+PASS V3.4.12 admin review risk filter UI 
+PASS Post-review server reconcile and independent nonwriting retry 
+PASS Applicant server-side status and map promotion 
+PASS Site PWA version updated 
+PASS Google submission writes complete pending payload 
+PASS Submission ID deterministic and no unsafe overwrite 
+PASS Approval duplicate screening uses server roster and fails closed 
+PASS New farm approval is atomic 
+PASS Existing farm edit approval is atomic 
+PASS Delete writes tombstone with same transaction 
+PASS Stale administrator edit is rejected inside transaction 
+PASS Stale nearby farm and concurrent create cannot overwrite 
+PASS Concurrent-write transaction execution regression packaged 
+PASS Existing farm edits use incremented version 
+PASS All committed farm paths attempt server readback 
+PASS Rules restrict official farms to admins 
+PASS Rules limit new submissions to Google accounts 
+PASS Submission owner read/list uses same Google identity as create 
+PASS New owner access is covered by emulator assertions 
+PASS Owner-only edit suggestion and audits use consistent contributor identity 
+PASS Emulator cases exercise unverified Google editing and audits 
+PASS Ordinary submission list scoped to signed-in user 
+PASS Rules require tombstone and prevent rebuild 
+PASS Expanded emulator cases include existing edits and audits 
+PASS Edit and approval acknowledge unverified server readback 
+PASS Delete commit survives UI/readback error 
+PASS Existing-farm suggestion checks its server readback 
+PASS Additional postcommit offline tests packaged 
+PASS Multi-document verification helper used for approvals and deletes 
+PASS Multi-document readback runtime test packaged 
+PASS Manual refresh reads formal farms and tombstones together 
+PASS No partial collections applied before both server reads 
+PASS Manual refresh consistency runtime cases packaged 
+PASS Chromium isolated dialog DOM 1440px 
+PASS Chromium dialog open 1440px 
+PASS Chromium tab cloudTabManage 1440px 
+PASS Chromium tab cloudTabReview 1440px 
+PASS Chromium tab cloudTabSync 1440px 
+PASS Advanced tools initially collapsed 1440px 
+PASS History shortcut opens advanced section 1440px 
+PASS Legacy shortcut opens audit tools 1440px 
+PASS Chromium pending navigation 1440px 
+PASS Chromium dialog close 1440px 
+PASS Chromium isolated dialog DOM 390px 
+PASS Chromium dialog open 390px 
+PASS Chromium tab cloudTabManage 390px 
+PASS Chromium tab cloudTabReview 390px 
+PASS Chromium tab cloudTabSync 390px 
+PASS Advanced tools initially collapsed 390px 
+PASS History shortcut opens advanced section 390px 
+PASS Legacy shortcut opens audit tools 390px 
+PASS Chromium pending navigation 390px 
+PASS Chromium dialog close 390px 
+SUMMARY 89 PASS 0 FAIL 0 SKIP
