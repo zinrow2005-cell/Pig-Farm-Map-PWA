@@ -1914,10 +1914,23 @@ function subscribeNewSubmissions(){ownerSubmissionCache.new=true;ownerSubmission
  const q=admin?F.query(F.collection(db,'farmSubmissions'),F.orderBy('submittedAt','desc'),F.limit(50)):F.query(F.collection(db,'farmSubmissions'),F.where('submittedBy','==',user.uid),F.limit(50));
  unsubNewSubmissions=F.onSnapshot(q,{includeMetadataChanges:true},s=>{if(generation!==submissionsGeneration||!sameSession(session,uid))return;ownerSubmissionCache.new=!!(s.metadata.fromCache||s.metadata.hasPendingWrites);ownerSubmissionError.new=false;newSubmissions=s.docs.map(d=>({...d.data(),id:d.id}));renderProposals();if(typeof renderNewSubmissionPrecheck==='function')renderNewSubmissionPrecheck();updateLinkage();syncIndicator();},e=>{if(generation===submissionsGeneration&&sameSession(session,uid)){ownerSubmissionError.new=true;renderProposals();status('新增豬場審核清單讀取失敗：'+err(e),true);}});
 }
-async function signIn(){if(!auth||!A){status('Firebase 尚未正確設定或套件尚未載入',true);return;}
- const btn=$('cloudSignIn');if(btn)btn.disabled=true;status('正在開啟 Google 登入視窗…');
- try{await A.signInWithPopup(auth,new A.GoogleAuthProvider());status('Google 帳號登入成功，正在同步資料…');}
- catch(e){status('登入未完成：'+err(e)+'。iPhone/iPad若使用主畫面PWA不支援彈窗，請先用 Safari 網頁登入。',true);}finally{if(btn)btn.disabled=false;}
+// Keep the session on this site/device. Google still controls whether its account
+// chooser can reuse an existing browser session; the site cannot read phone accounts.
+async function signIn(){
+ if(!auth||!A){status('Firebase 尚未正確設定或套件尚未載入',true);return;}
+ if(auth.currentUser){open();return;}
+ const btn=$('cloudSignIn');if(btn)btn.disabled=true;
+ status('正在開啟 Google 帳號選擇畫面；已登入瀏覽器的帳號通常不必重新輸入密碼…');
+ try{
+  // Persistence is configured during Firebase startup; open popup directly
+  // from the tap handler so iPhone Safari does not block it.
+  const provider=new A.GoogleAuthProvider();
+  provider.setCustomParameters({prompt:'select_account'});
+  await A.signInWithPopup(auth,provider);
+  status('Google 登入成功，已設定保留此裝置的登入狀態，正在同步資料…');
+ }catch(e){
+  status('登入未完成：'+err(e)+'。手機可先用 Safari／Chrome 登入 Google，再回網站選帳號；若從主畫面 PWA 開啟無法彈窗，請改用瀏覽器開啟登入。',true);
+ }finally{if(btn)btn.disabled=false;}
 }
 async function signOut(){if(!auth)return;try{await A.signOut(auth);status('已登出 Google；仍可查看公開的正式豬場。');}catch(e){status(err(e),true);}}
 // Administrator role must be confirmed by the server, not a potentially stale
@@ -2147,6 +2160,8 @@ async function start(options){if(started)return;started=true;hook=options;
  const [app,authLib,firestore]=await Promise.all([import(sdk+'firebase-app.js'),import(sdk+'firebase-auth.js'),import(sdk+'firebase-firestore.js')]);
  A=authLib;F=firestore;
  const application=app.initializeApp(conf,'pig-farm-map');auth=A.getAuth(application);db=F.getFirestore(application);
+ // Best-effort persistence: keep observing auth even on private/restricted browsers.
+ try{await A.setPersistence(auth,A.browserLocalPersistence);}catch(e){status('此瀏覽器可能無法永久保存登入狀態：'+err(e),true);}
  subscribeDeleted();subscribeFarms();A.onAuthStateChanged(auth,u=>{onUserChanged(u).catch(e=>status(err(e),true));},e=>status('Firebase Authentication 發生問題：'+err(e),true));
  }catch(e){status('Firebase 啟動失敗：'+err(e)+'。沒有啟用共用同步。',true);}
 }
