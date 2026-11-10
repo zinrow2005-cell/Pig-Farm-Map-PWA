@@ -1358,6 +1358,27 @@ function lookupAddress(kind,force=false){
   record(location?`查到：${location}${result.address?'；'+(result.precision==='門牌'?'含道路門牌':'含道路名稱'):'；沒有可靠道路門牌'}。${updated?'已填入 '+updated+' 欄，請核對後送出。':'原有資料受到保護；如要改用查詢結果，請先清空對應欄位再按一次。'} 資料：© OpenStreetMap contributors`:'未取得可靠縣市鄉鎮，請手動輸入；原有內容保持不變。');
  }).catch(e=>{if(serial===addressLookupTokens[kind])record('地址查詢未完成：'+(e?.name==='AbortError'?'服務逾時':(/Failed to fetch|NetworkError|Load failed/i.test(e?.message||'')?'連線或外部服務受到阻擋':String(e?.message||'服務不可用')))+'。請手動輸入縣市鄉鎮，原資料未更動。');});
 }
+
+// Draft-only coordinate replacement. Never saves or submits automatically.
+function updateDraftPoint(kind,lat,lng){
+ if(!Number.isFinite(lat)||!Number.isFinite(lng)||!root.PigAddressLookup?.valid(lat,lng))return false;
+ const isNew=kind==='new';
+ const form=$(isNew?'cloudNewForm':'cloudEditForm');
+ if(!form||form.hidden)return false;
+ const prefix=isNew?'cloudNew':'cloud';
+ const latEl=$(prefix+'Lat'),lngEl=$(prefix+'Lng');
+ if(!latEl||!lngEl)return false;
+ ++addressLookupTokens[kind]; // Invalidate all old reverse-geocode requests.
+ latEl.value=lat.toFixed(8);lngEl.value=lng.toFixed(8);
+ latEl.dispatchEvent(new Event('input',{bubbles:true}));lngEl.dispatchEvent(new Event('input',{bubbles:true}));
+ // A different point cannot carry a confirmed F03 parcel identity from old coordinates.
+ if(auditContext){auditContext.parcelKey='';updateLinkage();}
+ if(isNew){newPoint={lat,lng};if($('cloudNewParcel'))$('cloudNewParcel').textContent='已重新選擇座標；原地塊編碼已清除，請核對新位置';renderNewSubmissionPrecheck();}
+ const statusEl=$(isNew?'cloudNewAddressStatus':'cloudAddressStatus');
+ if(statusEl)statusEl.textContent='座標已更新。正在反查新地址；已有的手動欄位不會被覆蓋。';
+ lookupAddress(kind);
+ return true;
+}
 function beginNew(lat=null,lng=null){clearCloudFormDirty();
  open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
  const hasCoords=lat!==null&&lng!==null;
@@ -2129,7 +2150,7 @@ async function start(options){if(started)return;started=true;hook=options;
  subscribeDeleted();subscribeFarms();A.onAuthStateChanged(auth,u=>{onUserChanged(u).catch(e=>status(err(e),true));},e=>status('Firebase Authentication 發生問題：'+err(e),true));
  }catch(e){status('Firebase 啟動失敗：'+err(e)+'。沒有啟用共用同步。',true);}
 }
-root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},publishAudit,start,open,edit,beginNew,beginAudit,beginUnified,editAt,pull:refresh,
+root.PigCommunity={get enabled(){return enabled();},get connected(){return !!db;},publishAudit,start,open,edit,beginNew,beginAudit,beginUnified,editAt,updateDraftPoint,pull:refresh,
  deletionInfo(uid){return {isCloud:liveFarms.has(uid),canDelete:!!(user&&admin&&adminReady&&db&&liveFarms.has(uid))};},
  deleteFarm(uid){return deleteActiveFarm(uid);}};
 })(window);

@@ -150,3 +150,10 @@
 .cloud-new-precheck[data-risk="check"]{border-color:#b9c8d6;background:#f5f8fc}
 .cloud-new-precheck strong{font-size:15px}.cloud-new-precheck small{font-size:12px;line-height:1.6}.cloud-new-precheck ul{padding-left:1.3em;margin:4px 0}.cloud-new-precheck li{margin:4px 0;line-height:1.5}
 @media(max-width:600px){.cloud-new-precheck{padding:11px;font-size:14px}}
+/* V3.4.17 行動地圖最後覆寫：避免其他模組重新顯示占高的地圖設定列。 */
+@media(max-width:1024px){
+ .map-quick-controls>.farm-name-toggle,.map-quick-controls .farm-name-toggle,.map-quick-controls #geoLocationSettings{display:none!important}
+ .map-quick-controls{position:absolute!important;right:9px!important;bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;top:auto!important;left:auto!important;z-index:8500!important;background:transparent!important;border:0!important;padding:0!important;box-shadow:none!important;width:auto!important}
+ .mobile-map-quick{z-index:8900!important}
+ body.pig-mobile-focus .map-quick-controls{display:none!important}
+}
