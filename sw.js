@@ -1,5 +1,5 @@
-/* V3.4.25: network-first static files; old JS/CSS must not mask a deployed update. */
-const CACHE='pigfarm-shell-v3.4.25-network-first-20261110';
+/* V3.4.26: network-first static files; old JS/CSS must not mask a deployed update. */
+const CACHE='pigfarm-shell-v3.4.26-network-first-20261110b';
 const ASSETS=[
  './index.html','./manifest.webmanifest','./favicon.ico',
  './assets/css/app.css','./assets/css/ui.css','./assets/js/ui.js','./assets/js/health.js',

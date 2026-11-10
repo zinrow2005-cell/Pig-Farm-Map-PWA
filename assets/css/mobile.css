@@ -321,3 +321,23 @@
  body .mobile-floating-panel{top:calc(var(--pig-safe-top) + 45px)!important}
  body .app .map-label{top:calc(var(--pig-safe-top) + 50px)!important}
 }
+
+
+/* V3.4.26: one floating search field, a genuinely draggable drawer above the map. */
+@media(max-width:1024px){
+ body .mobile-map-quick{display:grid!important;grid-template-columns:minmax(0,1fr) auto auto auto!important;align-items:center!important;gap:5px!important;pointer-events:auto!important}
+ body .mobile-search-inline{display:flex!important;min-width:0!important;align-items:center!important;position:relative!important;border:1px solid #a8c6b8!important;border-radius:999px!important;background:#fffffff5!important;box-shadow:0 3px 12px #173c3930!important;height:39px!important;overflow:hidden!important}
+ body .mobile-search-inline input{min-width:0!important;width:100%!important;flex:1!important;border:0!important;outline:none!important;box-shadow:none!important;background:transparent!important;padding:8px 4px 8px 12px!important;height:37px!important;font-size:16px!important;color:#173e38!important}
+ body .mobile-search-inline button{border:0!important;box-shadow:none!important;background:transparent!important;flex:none!important;font-size:21px!important;min-width:36px!important;height:37px!important;padding:0 6px!important}
+ body .mobile-map-quick>button{font-size:11px!important;padding:6px 7px!important;min-height:37px!important}
+ body.pig-drawer-open #sidebar{z-index:9300!important;pointer-events:auto!important;visibility:visible!important;transform:translate3d(0,0,0)}
+ body.pig-drawer-open #sidebar.pig-drawer-dragging{transition:none!important}
+ body #sidebar{bottom:calc(58px + env(safe-area-inset-bottom,0px))!important;height:min(70dvh,620px)!important;max-height:calc(100dvh - var(--pig-safe-top,42px) - 85px)!important;overscroll-behavior:contain!important}
+ body #sidebar .mobile-drawer-handle{height:48px!important;min-height:48px!important;touch-action:none!important;cursor:grab!important}
+ body #sidebar .mobile-drawer-handle small{font-size:12px!important}
+ body #sidebar .farm-list{touch-action:pan-y!important;overscroll-behavior:contain!important;overflow-y:auto!important}
+ body .mobile-drawer-scrim{z-index:9000!important;touch-action:none!important}
+ body .mobile-dock{z-index:9150!important}
+}
+
+@media(max-width:1024px){body.pig-drawer-open .mobile-map-quick{z-index:9400!important}body.pig-drawer-open .mobile-map-quick .mobile-search-inline{pointer-events:auto!important}}
