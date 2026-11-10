@@ -1287,8 +1287,35 @@ function refreshF03(){
  });
  STATE.f03Year=year;STATE.f03=overlays;f03RenderedMode='online';scheduleF03TileHealth();
 }
+/* V3.4.25: photo-only transparent map labels supplied by NLSC EMAP2. */
+let PHOTO_PLACE_LABELS=null;
+function setPhotoPlaceLabels(show){
+ const map=STATE.maps?.[1];if(!map||typeof L==='undefined')return;
+ if(!PHOTO_PLACE_LABELS){
+  map.createPane('photoPlaces');
+  const pane=map.getPane('photoPlaces');pane.style.zIndex='410';pane.style.pointerEvents='none';
+  PHOTO_PLACE_LABELS=L.tileLayer('https://wmts.nlsc.gov.tw/wmts/EMAP2/default/GoogleMapsCompatible/{z}/{y}/{x}',{
+   pane:'photoPlaces',maxZoom:21,maxNativeZoom:19,opacity:.72,attribution:'&copy; 內政部國土測繪中心（透明電子地圖）',updateWhenIdle:true,keepBuffer:2
+  });
+ }
+ if(show){if(!map.hasLayer(PHOTO_PLACE_LABELS))PHOTO_PLACE_LABELS.addTo(map);}
+ else if(map.hasLayer(PHOTO_PLACE_LABELS))map.removeLayer(PHOTO_PLACE_LABELS);
+}
+window.PigPhotoPlaceLabels={set:setPhotoPlaceLabels};
+/* Called after orientation / visual viewport changes. Never reset the user's zoom or location. */
+window.PigMapViewportRepair=function(){
+ if(!STATE.mapReady||!STATE.maps?.length)return false;
+ const cameras=STATE.maps.map(map=>({center:map.getCenter(),zoom:map.getZoom()}));
+ STATE.maps.forEach((map,i)=>{
+  if(!map.getContainer()?.getBoundingClientRect().width)return;
+  map.invalidateSize({pan:false,debounceMoveend:true});
+  if(cameras[i])map.setView(cameras[i].center,cameras[i].zoom,{animate:false,reset:false});
+ });
+ scheduleFarmNameLabels();
+ return true;
+};
 function initMap(){if(typeof window.L==='undefined'){$('gisInfo').textContent='無法取得 Leaflet 地圖套件；清單與匯出仍可使用';$('gisInfo').classList.add('error');$('saveState').textContent='地圖套件載入失敗';return;}
- try{const left=L.map('surveyMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom),right=L.map('aerialMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom);STATE.maps=[left,right];for(const map of [left,right]){map.createPane('f03Overlay');map.getPane('f03Overlay').style.zIndex=350;map.getPane('f03Overlay').style.pointerEvents='none';map.createPane('auditAreas');map.getPane('auditAreas').style.zIndex=365;map.createPane('auditPins');map.getPane('auditPins').style.zIndex=575;map.createPane('inspectPreview');map.getPane('inspectPreview').style.zIndex=570;map.getPane('inspectPreview').style.pointerEvents='none';map.createPane('selectedFarmPane');map.getPane('selectedFarmPane').style.zIndex=690;map.getPane('selectedFarmPane').style.pointerEvents='none';map.createPane('farmTouchPane');map.getPane('farmTouchPane').style.zIndex=620;map.createPane('farmNamePane');map.getPane('farmNamePane').style.zIndex=660;map.getPane('farmNamePane').style.pointerEvents='none';map.createPane('deviceLocationPane');map.getPane('deviceLocationPane').style.zIndex=640;map.getPane('deviceLocationPane').style.pointerEvents='none';}STATE.bases=[null,null];startBase('emap');startBase('photo');STATE.auditAreaGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.inspectPreviewGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.auditGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.markerGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.farmNameGroups=[];STATE.selectedFarmGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.queueHighlights=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneAreaLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneCandidateLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.mapReady=true;
+ try{const left=L.map('surveyMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom),right=L.map('aerialMap',{zoomControl:true,preferCanvas:true}).setView(STATE.center,STATE.zoom);STATE.maps=[left,right];for(const map of [left,right]){map.createPane('f03Overlay');map.getPane('f03Overlay').style.zIndex=350;map.getPane('f03Overlay').style.pointerEvents='none';map.createPane('auditAreas');map.getPane('auditAreas').style.zIndex=365;map.createPane('auditPins');map.getPane('auditPins').style.zIndex=575;map.createPane('inspectPreview');map.getPane('inspectPreview').style.zIndex=570;map.getPane('inspectPreview').style.pointerEvents='none';map.createPane('selectedFarmPane');map.getPane('selectedFarmPane').style.zIndex=690;map.getPane('selectedFarmPane').style.pointerEvents='none';map.createPane('farmTouchPane');map.getPane('farmTouchPane').style.zIndex=620;map.createPane('farmNamePane');map.getPane('farmNamePane').style.zIndex=660;map.getPane('farmNamePane').style.pointerEvents='none';map.createPane('deviceLocationPane');map.getPane('deviceLocationPane').style.zIndex=640;map.getPane('deviceLocationPane').style.pointerEvents='none';}STATE.bases=[null,null];startBase('emap');startBase('photo');STATE.auditAreaGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.inspectPreviewGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.auditGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.markerGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.farmNameGroups=[];STATE.selectedFarmGroups=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.queueHighlights=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneAreaLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.zoneCandidateLayers=[L.featureGroup().addTo(left),L.featureGroup().addTo(right)];STATE.mapReady=true;setPhotoPlaceLabels(document.getElementById('photoPlaceLabels')?.checked!==false);
  window.PigGeolocate?.onMapsReady?.();
  for(const map of STATE.maps){map.on('zoomend',renderAuditPins);map.on('zoomend',scheduleF03TileHealth);map.on('moveend',scheduleF03TileHealth);map.on('zoomend',scheduleFarmNameLabels);map.on('movestart',clearFarmLabelCanvases);map.on('zoomstart',clearFarmLabelCanvases);map.on('resize',scheduleFarmNameLabels);} for(const map of STATE.maps)map.on('click',clickedMap);left.on('moveend',()=>onMapMove(left,right));right.on('moveend',()=>onMapMove(right,left));left.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);right.on('mousemove',e=>$('coordBar').textContent=`指標：${e.latlng.lat.toFixed(6)} N, ${e.latlng.lng.toFixed(6)} E`);
  if(window.matchMedia){const farmLayoutMedia=window.matchMedia('(max-width:1024px)');if(farmLayoutMedia.addEventListener)farmLayoutMedia.addEventListener('change',()=>renderMarkers());else if(farmLayoutMedia.addListener)farmLayoutMedia.addListener(()=>renderMarkers());}

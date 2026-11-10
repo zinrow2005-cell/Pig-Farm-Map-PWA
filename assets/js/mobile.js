@@ -158,6 +158,8 @@
  $('mobileSearchInput')?.addEventListener('keydown',e=>{if(e.key==='Enter'){closePanels();openDrawer();}});
  document.querySelectorAll('[data-mobile-layer-view]').forEach(b=>b.addEventListener('click',()=>{clickOriginal('mode'+({both:'Both',survey:'Survey',aerial:'Aerial'}[b.dataset.mobileLayerView]));syncLayerButtons();}));
  mountStats();mountLayerSettings();syncLayerButtons();
+ const photoLabels=$('photoPlaceLabels');
+ photoLabels?.addEventListener('change',()=>window.PigPhotoPlaceLabels?.set?.(photoLabels.checked));
  $('mobileFarmsOpen')?.addEventListener('click',()=>document.body.classList.contains('pig-drawer-open')?closeDrawer():openDrawer());
  $('mobileDrawerClose')?.addEventListener('click',closeDrawer);
  $('mobileDrawerScrim')?.addEventListener('click',closeDrawer);

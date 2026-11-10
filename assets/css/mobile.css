@@ -303,3 +303,21 @@
   body.pig-mobile-focus .map-area{padding-bottom:0!important}
   body.pig-mobile-focus .map-label{top:calc(55px + env(safe-area-inset-top,0px))!important}
 }
+
+
+/* V3.4.25: rotating an iPhone must not leave controls under the system status bar. */
+@media (max-width:1024px) {
+ body{--pig-safe-top:max(env(safe-area-inset-top, 0px), 42px)}
+ body .mobile-map-quick{top:calc(var(--pig-safe-top) + 6px)!important;max-width:calc(100vw - 16px);box-sizing:border-box}
+ body .mobile-floating-panel{top:calc(var(--pig-safe-top) + 51px)!important;max-height:calc(100dvh - var(--pig-safe-top) - 125px)!important}
+ body .app .map-label{top:calc(var(--pig-safe-top) + 54px)!important}
+ body .app{height:var(--pig-viewport-height, 100dvh)!important}
+ .photo-label-control{display:flex;align-items:center;gap:9px;padding:10px 4px;font-size:13px;font-weight:650}
+ .photo-label-control input{width:19px;height:19px;flex:none}
+}
+@media (max-width:1024px) and (orientation:landscape){
+ body{--pig-safe-top:max(env(safe-area-inset-top, 0px), 4px)}
+ body .mobile-map-quick{top:calc(var(--pig-safe-top) + 4px)!important}
+ body .mobile-floating-panel{top:calc(var(--pig-safe-top) + 45px)!important}
+ body .app .map-label{top:calc(var(--pig-safe-top) + 50px)!important}
+}
