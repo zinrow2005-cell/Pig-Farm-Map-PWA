@@ -341,3 +341,38 @@
 }
 
 @media(max-width:1024px){body.pig-drawer-open .mobile-map-quick{z-index:9400!important}body.pig-drawer-open .mobile-map-quick .mobile-search-inline{pointer-events:auto!important}}
+
+
+/* V3.4.27: search is a FULL-WIDTH FIRST ROW; tools are a SECOND ROW.
+   Zoom belongs BELOW both rows; never overlap controls or status bar. */
+@media (max-width:1024px){
+ body .mobile-map-quick{
+   display:grid!important;
+   grid-template-columns:repeat(3,minmax(0,1fr))!important;
+   grid-template-rows:39px 37px!important;
+   row-gap:8px!important;column-gap:6px!important;
+   align-items:stretch!important;
+   top:calc(var(--pig-safe-top,42px) + 6px)!important;
+   left:8px!important;right:8px!important;
+ }
+ body .mobile-map-quick .mobile-search-inline{
+   grid-column:1/-1!important;grid-row:1!important;width:100%!important;
+   box-sizing:border-box!important;margin:0!important;
+ }
+ body .mobile-map-quick>#mobileStatsToggle{grid-column:1!important;grid-row:2!important}
+ body .mobile-map-quick>#mobileLayersToggle{grid-column:2!important;grid-row:2!important}
+ body .mobile-map-quick>#mobileImmersiveToggle{grid-column:3!important;grid-row:2!important}
+ body .mobile-map-quick>button{width:100%!important;height:37px!important;min-width:0!important;padding:5px 3px!important}
+ body .mobile-floating-panel{top:calc(var(--pig-safe-top,42px) + 100px)!important;
+   max-height:calc(100dvh - var(--pig-safe-top,42px) - 170px)!important}
+ body .map-pane .leaflet-top.leaflet-left,
+ body .map .leaflet-top.leaflet-left{top:calc(var(--pig-safe-top,42px) + 100px)!important;left:8px!important}
+ body .app .map-label{top:calc(var(--pig-safe-top,42px) + 198px)!important;left:8px!important}
+}
+@media (max-width:1024px) and (orientation:landscape){
+ body .mobile-map-quick{top:calc(var(--pig-safe-top,4px) + 4px)!important}
+ body .map-pane .leaflet-top.leaflet-left,
+ body .map .leaflet-top.leaflet-left{top:calc(var(--pig-safe-top,4px) + 98px)!important}
+ body .app .map-label{top:calc(var(--pig-safe-top,4px) + 190px)!important}
+ body .mobile-floating-panel{top:calc(var(--pig-safe-top,4px) + 98px)!important}
+}
