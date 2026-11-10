@@ -1290,6 +1290,7 @@ function edit(uid){legacyWorklistEditContext=null;renderLegacyEditContext();open
  $('cloudTown').value=cloud.town??r.town;
  $('cloudAddress').value=cloud.address??r.address;
  $('cloudLat').value=cloud.lat??(geo?geo[1]:'');$('cloudLng').value=cloud.lng??(geo?geo[0]:'');
+ ++addressLookupTokens.edit;if($('cloudAddressStatus'))$('cloudAddressStatus').textContent='原有地址不會被自動覆蓋；可按下方按鈕重新查詢。';
  $('cloudNote').value='';$('cloudEditForm').hidden=false;renderUser();updateLinkage(cloud.auditParcelKey||'');
  if(!user)status('請先使用 Google 登入，再提交這筆豬場資料',true);
 }
@@ -1300,6 +1301,7 @@ function editAt(uid,lat,lng){
  // Reusing the existing farm ID is essential: never create a second record.
  edit(uid);$('cloudNewForm').hidden=true;
  $('cloudLat').value=Number(lat).toFixed(8);$('cloudLng').value=Number(lng).toFixed(8);
+ lookupAddress('edit');
  $('cloudFarm').textContent+=' · 已由地圖更新定位，請檢查並儲存';
  status(admin?'請確認這筆既有豬場位置，管理員儲存後直接更新正式資料。':'請確認這筆既有豬場位置，送審核准後才更新正式資料。');
  return true;
@@ -1321,6 +1323,33 @@ function linkExistingFromPoint(uid){
  editAt(uid,lat,lng);
  if(unifiedFlow){$('cloudEditWizardBack').hidden=false;$('cloudEditWizardProgress').hidden=false;}
 }
+// Suggested addresses are never saved without the form's normal confirmation.
+// Lookup tokens prevent an older map selection from overwriting a newer point.
+const addressLookupTokens={new:0,edit:0};
+function lookupAddress(kind,force=false){
+ const isNew=kind==='new', prefix=isNew?'cloudNew':'cloud';
+ const latEl=$(prefix+'Lat'),lngEl=$(prefix+'Lng'),countyEl=$(prefix+'County'),townEl=$(prefix+'Town'),addressEl=$(prefix+'Address');
+ const statusEl=$(isNew?'cloudNewAddressStatus':'cloudAddressStatus');
+ const lat=Number(latEl?.value),lng=Number(lngEl?.value);
+ const serial=++addressLookupTokens[kind];
+ const record=message=>{if(statusEl)statusEl.textContent=message;};
+ if(!latEl?.value||!lngEl?.value||!root.PigAddressLookup?.valid(lat,lng)){
+  record('先選擇臺灣地圖上的有效位置，或填入正確經緯度。');return;
+ }
+ const original={county:countyEl.value,town:townEl.value,address:addressEl.value};
+ record('正在查詢位置的縣市、鄉鎮與道路（資料來源：OpenStreetMap）…');
+ root.PigAddressLookup.lookup(lat,lng).then(result=>{
+  if(serial!==addressLookupTokens[kind]||Number(latEl.value)!==lat||Number(lngEl.value)!==lng)return;
+  if((!isNew&&$('cloudEditForm').hidden)||(isNew&&$('cloudNewForm').hidden))return;
+  const apply=(field,value,initial,placeholder=false)=>{if(!value||field.value!==initial)return false;if(!force&&initial&&!placeholder)return false;field.value=value;field.dispatchEvent(new Event('input',{bubbles:true}));return true;};
+  let updated=0;
+  if(apply(countyEl,result.county,original.county,isNew&&original.county==='雲林縣'))updated++;
+  if(apply(townEl,result.town,original.town))updated++;
+  if(apply(addressEl,result.address,original.address))updated++;
+  const location=[result.county,result.town].filter(Boolean).join('');
+  record(location?`查到：${location}${result.address?'；'+(result.precision==='門牌'?'含道路門牌':'含道路名稱'):'；沒有可靠道路門牌'}。${updated?'已填入 '+updated+' 欄，請核對後送出。':'現有欄位未被覆蓋，必要時可清空再查詢。'} 資料：© OpenStreetMap contributors`:'未取得可靠縣市鄉鎮，請手動輸入；原有內容保持不變。');
+ }).catch(e=>{if(serial===addressLookupTokens[kind])record('查詢失敗或離線，原有資料保留。請手動填寫縣市鄉鎮。'+(e?.name==='AbortError'?'（連線逾時）':''));});
+}
 function beginNew(lat=null,lng=null){clearCloudFormDirty();
  open();if(!db||!user||!adminReady){status('請先登入，並等待管理員身分檢查完成，再新增或送審。',true);return false;}
  const hasCoords=lat!==null&&lng!==null;
@@ -1328,9 +1357,11 @@ function beginNew(lat=null,lng=null){clearCloudFormDirty();
  newPoint=hasCoords?{lat:Number(lat),lng:Number(lng)}:{};
  activeFarm=null;editBaseVersion=null;$('cloudPanel').classList.add('cloud-form-active');$('cloudEditForm').hidden=true;$('cloudNewForm').hidden=false;renderUser();
  $('cloudNewDecision').value=auditContext?.decision||'pig';$('cloudNewParcel').textContent=auditContext?.parcelKey?'地塊識別：'+auditContext.parcelKey:'此點未取得 F03 地塊識別碼，將以座標建立標記';
- $('cloudNewName').value='';$('cloudNewCounty').value='雲林縣';$('cloudNewTown').value='';$('cloudNewAddress').value='';
+ $('cloudNewName').value='';$('cloudNewCounty').value=hasCoords?'':'雲林縣';$('cloudNewTown').value='';$('cloudNewAddress').value='';
  $('cloudNewLat').value=hasCoords?Number(lat).toFixed(8):'';
  $('cloudNewLng').value=hasCoords?Number(lng).toFixed(8):'';
+ if($('cloudNewAddressStatus'))$('cloudNewAddressStatus').textContent=hasCoords?'準備依地圖位置查詢縣市鄉鎮…':'請先在地圖選點或輸入座標';
+ ++addressLookupTokens.new;if(hasCoords)lookupAddress('new');
 
  status(hasCoords?'已從地圖取得座標，請填入豬場名稱與地址後確認。':'請填入豬場資料與 WGS84 經緯度。');
  $('cloudLinkSearch').value='';renderLinkMatches();updateLinkage();renderNewSubmissionPrecheck();$('cloudNewName').focus();return true;
@@ -1846,7 +1877,7 @@ function beginAudit(lat,lng,decision,linkedUid,note,onSaved,parcelKey=''){
  auditContext=null;
  if(!user||!db||!adminReady){open();status('請先 Google 登入並等待權限確認，才能填寫豬場資料。',true);return false;}
  auditContext={decision,note,onSaved,parcelKey:clean(parcelKey,160)};
- if(linkedUid&&liveFarms.has(linkedUid)){edit(linkedUid);$('cloudLat').value=lat.toFixed(8);$('cloudLng').value=lng.toFixed(8);$('cloudNote').value=note||'';
+ if(linkedUid&&liveFarms.has(linkedUid)){edit(linkedUid);$('cloudLat').value=lat.toFixed(8);$('cloudLng').value=lng.toFixed(8);lookupAddress('edit');$('cloudNote').value=note||'';
   status(admin?'請核對既有豬場資料，直接儲存後套用查核結果。':'請填寫豬場資料並送審；管理員核准後才更新正式資料。');return true;}
  beginNew(lat,lng);status(admin?'請填寫名稱與地址；管理員儲存後直接生效。':'請填寫名稱與地址；送審後須經管理員核准才會正式生效。');return true;
 }
@@ -1964,6 +1995,12 @@ async function start(options){if(started)return;started=true;hook=options;
  $('cloudApproveExisting')?.addEventListener('click',event=>submit(event,true));
  $('cloudUnifiedWizard')?.addEventListener('click',e=>{const button=e.target.closest('[data-wizard-decision]');if(button)unifiedDecision(button.dataset.wizardDecision);});
  $('cloudWizardCancel')?.addEventListener('click',close);$('cloudWizardBack')?.addEventListener('click',unifiedBack);$('cloudEditWizardBack')?.addEventListener('click',unifiedBack);
+ $('cloudNewAddressLookup')?.addEventListener('click',()=>lookupAddress('new',true));
+ $('cloudAddressLookup')?.addEventListener('click',()=>lookupAddress('edit',true));
+ $('cloudNewLat')?.addEventListener('change',()=>lookupAddress('new'));
+ $('cloudNewLng')?.addEventListener('change',()=>lookupAddress('new'));
+ $('cloudLat')?.addEventListener('change',()=>lookupAddress('edit'));
+ $('cloudLng')?.addEventListener('change',()=>lookupAddress('edit'));
  $('cloudNewOpen')?.addEventListener('click',()=>beginNew());
  $('cloudLinkSearch')?.addEventListener('input',renderLinkMatches);$('cloudLinkResults')?.addEventListener('click',e=>{const b=e.target.closest('[data-link-existing]');if(b)linkExistingFromPoint(b.dataset.linkExisting);});$('cloudPickExisting')?.addEventListener('click',()=>{if(!activeFarm)return;const uid=activeFarm;close();hook?.pickExistingOnMap?.(uid);});
  $('cloudManageNew')?.addEventListener('click',()=>{setCloudView('manage');beginNew();});

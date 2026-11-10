@@ -669,7 +669,28 @@ function openRecord(uid,pan=true){const r=STATE.records.find(x=>x.uid===uid);if(
  $('fieldName').value=r.name;$('fieldCounty').value=countyKey(r.county)||'雲林縣';if(!$('fieldCounty').value){const opt=new Option(r.county,r.county);$('fieldCounty').add(opt);$('fieldCounty').value=r.county;}$('fieldTown').value=r.town;$('fieldCategory').value=r.category;$('fieldAddress').value=r.address;$('fieldReview').value=r.review;$('fieldImageYear').value=r.imageYear;$('fieldEvidence').value=r.evidence;$('fieldNote').value=r.note;
  $('fieldLat').value=c?c[0].toFixed(8):'';$('fieldLng').value=c?c[1].toFixed(8):'';const polygon=r.geometry?.type==='Polygon';$('fieldLat').readOnly=polygon;$('fieldLng').readOnly=polygon;
  $('originalInfo').textContent=`舊狀態：${r.originalStatus||'無'}；舊資料位置審核：${r.legacy?.mapLocationReview||'無'}；舊資料最終核定：${r.legacy?.finalApproval||'無'}。${polygon?'多邊形不可直接用經緯度欄位修改外框。':''}`;
- $('editor').hidden=false;$('editorBackdrop').hidden=false;}
+ $('editor').hidden=false;$('editorBackdrop').hidden=false;
+ if($('fieldAddressStatus'))$('fieldAddressStatus').textContent='可按「由座標帶入地址」查詢，既有欄位不會被覆蓋。';}
+let localAddressToken=0;
+document.addEventListener('click',event=>{if(event.target.closest('#fieldAddressLookup'))lookupLocalAddress();});
+function lookupLocalAddress(){
+ const latText=$('fieldLat').value,lngText=$('fieldLng').value,lat=Number(latText),lng=Number(lngText),token=++localAddressToken;
+ const info=$('fieldAddressStatus');
+ if(!latText||!lngText||!window.PigAddressLookup?.valid(lat,lng)){info.textContent='請先選擇臺灣地圖座標。';return;}
+ const county=$('fieldCounty'),town=$('fieldTown'),address=$('fieldAddress');
+ const originals=[county.value,town.value,address.value];
+ info.textContent='正在查詢縣市鄉鎮與地址…';
+ window.PigAddressLookup.lookup(lat,lng).then(result=>{
+  if(token!==localAddressToken||$('editor').hidden||Number($('fieldLat').value)!==lat||Number($('fieldLng').value)!==lng)return;
+  // Only fill blank fields to avoid destroying manual edits.
+  let n=0;
+  for(const [el,value,initial] of [[county,result.county,originals[0]],[town,result.town,originals[1]],[address,result.address,originals[2]]]){
+   if(!value||el.value!==initial||initial&&!(el===county&&initial==='雲林縣'))continue;
+   el.value=value;n++;el.dispatchEvent(new Event('input',{bubbles:true}));
+  }
+  info.textContent=[result.county,result.town].filter(Boolean).join('')+(n?'；已填入空白欄位，請確認':'；原有內容未覆蓋')+'。© OpenStreetMap contributors';
+ }).catch(()=>{if(token===localAddressToken)info.textContent='地址服務暫時無法使用，請自行填寫。';});
+}
 function closeEditor(){$('editor').hidden=true;$('editorBackdrop').hidden=true;}
 function createPointAt(lat,lng,editExisting=null){if(window.PigCommunity?.enabled){if(editExisting){window.PigCommunity.edit(editExisting);return notice('請在共用編輯視窗中更新原豬場的經緯度。');}window.PigCommunity.beginNew(lat,lng);return;}if(editExisting){const r=STATE.records.find(x=>x.uid===editExisting);if(!r)return;r.geometry={type:'Point',coordinates:[lng,lat]};r.updatedAt=new Date().toISOString();r.review='pending';notice('已重新定位，請再次核對及儲存。');persist();renderList();openRecord(r.uid,false);return;}
  const r=C.normalize({uid:newId(),geometry:{type:'Point',coordinates:[lng,lat]},name:'未命名地點',category:'unchecked',review:'pending',county:$('filterCounty').value==='all'?'雲林縣':$('filterCounty').value,town:'',source:'人工地圖點選',evidence:'待比對 ATIS 影像',createdAt:new Date().toISOString()});STATE.records.push(r);updateTownOptions();renderStats();persist();renderList();openRecord(r.uid,false);}

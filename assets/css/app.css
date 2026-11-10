@@ -493,3 +493,8 @@
 .cloud-review-sync [data-state="partial"],.cloud-review-sync [data-state="error"]{color:#a43428}
 .cloud-review-sync button{min-height:42px;max-width:100%;white-space:normal}
 @media(max-width:600px){.cloud-review-sync button{width:100%;min-height:46px}}
+
+/* V3.4.15 address lookups */
+.address-lookup-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:5px 0 12px;}
+.address-lookup-row button{min-height:36px;padding:7px 12px;white-space:normal;}
+.address-lookup-row small{flex:1;min-width:180px;line-height:1.55;color:var(--muted,#64748b);}

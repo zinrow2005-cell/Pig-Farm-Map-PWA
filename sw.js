@@ -1,11 +1,11 @@
-/* 豬場地圖查核 V3.4.14：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
-const CACHE='pigfarm-shell-v3.4.14-clean-20261109';
+/* 豬場地圖查核 V3.4.15：可更新的 PWA 外殼快取；不快取使用者資料與官方地圖圖磚。 */
+const CACHE='pigfarm-shell-v3.4.15-address-20261110';
 const ASSETS=[
  './index.html','./manifest.webmanifest','./favicon.ico',
  './assets/css/app.css','./assets/css/ui.css','./assets/js/ui.js','./assets/js/health.js',
   './assets/css/desktop.css','./assets/css/geo.css',
   './assets/js/desktop.js','./assets/js/geo.js','./assets/css/mobile.css','./assets/css/farm-info.css','./assets/css/help.css','./assets/js/mobile.js','./assets/js/f03-services.js',
- './assets/js/help.js','./assets/js/pig-core.js','./assets/js/cloud-config.js','./assets/js/community.js','./assets/js/app.js','./assets/js/pwa-install.js',
+ './assets/js/help.js','./assets/js/pig-core.js','./assets/js/cloud-config.js','./assets/js/address-lookup.js','./assets/js/community.js','./assets/js/app.js','./assets/js/pwa-install.js',
  './data/f03-y112-yunlin.js','./data/legacy-farms.js',
  './icons/app-192.png','./icons/app-512.png','./icons/app-maskable-512.png','./icons/apple-touch-icon.png'
 ];
